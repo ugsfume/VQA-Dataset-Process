@@ -79,13 +79,13 @@ def apply_affine(img: np.ndarray, m2x3: np.ndarray, is_mask: bool) -> np.ndarray
 
 def random_geometric(w: int, h: int, params: Dict, rng: random.Random) -> Tuple[np.ndarray, Dict]:
     """
-    Compose geometric transforms in the following order:
-    rotation -> shear -> stretch (anisotropic scale) -> flips
+    Order: rot90 (discrete) -> small-angle rotation -> shear -> stretch -> flips.
     Returns 2x3 affine matrix and metadata.
     """
     M = np.array([[1,0,0],[0,1,0]], dtype=np.float32)
     meta = {
-        "rotation_deg": 0.0,
+        "rot90_deg": 0,               # 0, 90, 180, 270
+        "small_rotation_deg": 0.0,    # small angle
         "shear_kx": 0.0,
         "shear_ky": 0.0,
         "stretch_sx": 1.0,
@@ -94,14 +94,24 @@ def random_geometric(w: int, h: int, params: Dict, rng: random.Random) -> Tuple[
         "flip_v": False
     }
 
-    # Rotation
-    if rng.random() < params["apply_rotate_prob"]:
-        angle = rng.uniform(-params["max_rotate_deg"], params["max_rotate_deg"])
+    # 1) Discrete 90*n rotation
+    if rng.random() < params["apply_rot90_prob"]:
+        choices = params.get("rot90_choices", [90, 180, 270])
+        if choices:
+            ang90 = int(rng.choice(choices))
+            R90 = make_center_rotation(w, h, float(ang90))
+            M = compose_affine_mats(R90, M)
+            meta["rot90_deg"] = ang90
+
+    # 2) Small-angle rotation
+    if rng.random() < params["apply_small_rotate_prob"]:
+        max_deg = float(params["max_small_rotate_deg"])
+        angle = rng.uniform(-max_deg, max_deg)
         R = make_center_rotation(w, h, angle)
         M = compose_affine_mats(R, M)
-        meta["rotation_deg"] = angle
+        meta["small_rotation_deg"] = angle
 
-    # Shear
+    # 3) Shear
     if rng.random() < params["apply_shear_prob"]:
         kx = rng.uniform(-params["max_shear_x"], params["max_shear_x"])
         ky = rng.uniform(-params["max_shear_y"], params["max_shear_y"])
@@ -110,7 +120,7 @@ def random_geometric(w: int, h: int, params: Dict, rng: random.Random) -> Tuple[
         meta["shear_kx"] = kx
         meta["shear_ky"] = ky
 
-    # Stretch (anisotropic scaling)
+    # 4) Stretch (anisotropic scaling)
     if rng.random() < params["apply_stretch_prob"]:
         sx = 1.0 + rng.uniform(-params["max_stretch_x_delta"], params["max_stretch_x_delta"])
         sy = 1.0 + rng.uniform(-params["max_stretch_y_delta"], params["max_stretch_y_delta"])
@@ -121,7 +131,7 @@ def random_geometric(w: int, h: int, params: Dict, rng: random.Random) -> Tuple[
         meta["stretch_sx"] = sx
         meta["stretch_sy"] = sy
 
-    # Flips
+    # 5) Flips
     if rng.random() < params["apply_flip_h_prob"]:
         FH = make_center_flip_h(w, h)
         M = compose_affine_mats(FH, M)
@@ -138,7 +148,7 @@ def apply_photometric(img_bgr: np.ndarray, params: Dict, rng: random.Random) -> 
     meta: Dict = {}
     out = img_bgr.copy()
 
-    # Brightness/contrast
+    # 6) Brightness/contrast
     if rng.random() < params["apply_brightness_contrast_prob"]:
         beta = rng.uniform(-params["max_brightness_delta"], params["max_brightness_delta"])
         delta = rng.uniform(-params["max_contrast_delta"], params["max_contrast_delta"])
@@ -147,7 +157,7 @@ def apply_photometric(img_bgr: np.ndarray, params: Dict, rng: random.Random) -> 
         meta["brightness_beta"] = beta
         meta["contrast_alpha"] = alpha
 
-    # Color jitter (HSV)
+    # 7) Color jitter (HSV)
     if rng.random() < params["apply_color_jitter_prob"]:
         hsv = cv2.cvtColor(out, cv2.COLOR_BGR2HSV).astype(np.float32)
         h_, s_, v_ = cv2.split(hsv)
@@ -163,14 +173,14 @@ def apply_photometric(img_bgr: np.ndarray, params: Dict, rng: random.Random) -> 
         meta["saturation_scale"] = sat_scale
         meta["value_scale"] = val_scale
 
-    # Gaussian noise
+    # 8) Gaussian noise
     if rng.random() < params["apply_gaussian_noise_prob"]:
         std = rng.uniform(0.0, params["max_noise_std"])
         noise_img = np.random.normal(0, std, size=out.shape).astype(np.float32)
         out = np.clip(out.astype(np.float32) + noise_img, 0, 255).astype(np.uint8)
         meta["gaussian_noise_std"] = std
 
-    # Blur
+    # 9) Blur
     if rng.random() < params["apply_blur_prob"] and params["max_blur_kernel"] and params["max_blur_kernel"] > 1:
         kmax = odd_kernel(params["max_blur_kernel"])
         choices = [ks for ks in range(3, kmax + 1, 2)]

@@ -15,14 +15,19 @@ DEFAULT_PARAMS: Dict = {
     "seed": None,
 
     # Geometric transforms (Both RGB and masks)
-    "apply_rotate_prob": 0.8,            # Probability to apply rotation
-    "max_rotate_deg": 15.0,              # Max absolute rotation angle in degrees
+    # Discrete rotation first (angles in degrees; any values allowed)
+    "apply_rot90_prob": 0.7,
+    "rot90_choices": [90, 180, 270],
 
-    "apply_shear_prob": 0.5,             # Probability to apply shear
+    # Small-angle rotation next
+    "apply_small_rotate_prob": 0.0,
+    "max_small_rotate_deg": 15.0,
+
+    "apply_shear_prob": 0.0,             # Probability to apply shear
     "max_shear_x": 0.15,                 # Max |kx| for horizontal shear
     "max_shear_y": 0.15,                 # Max |ky| for vertical shear
 
-    "apply_stretch_prob": 0.5,           # Probability to apply anisotropic scaling (stretch)
+    "apply_stretch_prob": 0.0,           # Probability to apply anisotropic scaling (stretch)
     "max_stretch_x_delta": 0.15,         # sx in [1-delta, 1+delta]
     "max_stretch_y_delta": 0.15,         # sy in [1-delta, 1+delta]
 
@@ -46,11 +51,10 @@ DEFAULT_PARAMS: Dict = {
     "max_blur_kernel": 5,                # max odd kernel size (use <=1 to disable)
 
     # Final crop/resize (last step). Width/height chosen independently.
-    # If max_* is None, it will default to the original image dimension for that sample.
-    "min_crop_width": 70,
-    "min_crop_height": 70,
-    "max_crop_width": 1000,              # None = Defaults to original width
-    "max_crop_height": 1000,             # None = Defaults to original height
+    "min_crop_width": 512,
+    "min_crop_height": 512,
+    "max_crop_width": 512,              # None = Defaults to original width
+    "max_crop_height": 512,             # None = Defaults to original height
 }
 
 def build_arg_parser() -> argparse.ArgumentParser:
@@ -59,7 +63,10 @@ def build_arg_parser() -> argparse.ArgumentParser:
     p.add_argument("-n", "--num", type=int, help="Number of augmented sets per sample (overrides default).")
     p.add_argument("--seed", type=int, default=None, help="Random seed.")
     # Geometric overrides
-    p.add_argument("--max-rotate", type=float, help="Max absolute rotation degrees.")
+    p.add_argument("--rot90-prob", type=float, help="Probability of applying a discrete rotation.")
+    p.add_argument("--rot90-choices", type=str, help="Comma-separated rotation angles in degrees (e.g. 90,180,270 or any angles).")
+    p.add_argument("--small-rotate-prob", type=float, help="Probability of applying small-angle rotation.")
+    p.add_argument("--max-small-rotate", type=float, help="Max abs degrees for small-angle rotation.")
     p.add_argument("--max-shear-x", type=float, help="Max absolute shear kx.")
     p.add_argument("--max-shear-y", type=float, help="Max absolute shear ky.")
     p.add_argument("--max-stretch-x", type=float, help="Max stretch delta for sx (sx in [1-d,1+d]).")
@@ -75,8 +82,23 @@ def load_params_from_args(args: argparse.Namespace) -> Dict:
     params = DEFAULT_PARAMS.copy()
     if args.num is not None:
         params["num_aug_per_sample"] = int(args.num)
-    if args.max_rotate is not None:
-        params["max_rotate_deg"] = float(args.max_rotate)
+
+    # Discrete rotation
+    if args.rot90_prob is not None:
+        params["apply_rot90_prob"] = float(args.rot90_prob)
+    if args.rot90_choices:
+        try:
+            params["rot90_choices"] = [int(x) for x in args.rot90_choices.split(",") if x.strip()]
+        except Exception:
+            pass
+            
+    # Small-angle rotation
+    if args.small_rotate_prob is not None:
+        params["apply_small_rotate_prob"] = float(args.small_rotate_prob)
+    if args.max_small_rotate is not None:
+        params["max_small_rotate_deg"] = float(args.max_small_rotate)
+
+    # Shear/stretch
     if args.max_shear_x is not None:
         params["max_shear_x"] = float(args.max_shear_x)
     if args.max_shear_y is not None:
@@ -85,6 +107,8 @@ def load_params_from_args(args: argparse.Namespace) -> Dict:
         params["max_stretch_x_delta"] = float(args.max_stretch_x)
     if args.max_stretch_y is not None:
         params["max_stretch_y_delta"] = float(args.max_stretch_y)
+
+    # Crop
     if args.min_w is not None:
         params["min_crop_width"] = int(args.min_w)
     if args.min_h is not None:
