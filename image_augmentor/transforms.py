@@ -67,12 +67,18 @@ def make_center_stretch(w: int, h: int, sx: float, sy: float) -> np.ndarray:
     return mat2x3_from_3x3(M3.astype(np.float32))
 
 def apply_affine(img: np.ndarray, m2x3: np.ndarray, is_mask: bool) -> np.ndarray:
-    # Masks use nearest and constant(0); RGB uses bilinear + reflect borders to avoid artifacts.
+    # Use constant black borders for both RGB and masks to avoid mirrored edges.
+    # Masks: nearest interpolation + binarize; RGB: bilinear.
     interp = cv2.INTER_NEAREST if is_mask else cv2.INTER_LINEAR
-    border_mode = cv2.BORDER_CONSTANT if is_mask else cv2.BORDER_REFLECT_101
+    border_mode = cv2.BORDER_CONSTANT
     border_value = 0
     h, w = img.shape[:2]
-    warped = cv2.warpAffine(img, m2x3, (w, h), flags=interp, borderMode=border_mode, borderValue=border_value)
+    warped = cv2.warpAffine(
+        img, m2x3, (w, h),
+        flags=interp,
+        borderMode=border_mode,
+        borderValue=border_value
+    )
     if is_mask:
         warped = (warped > 127).astype(np.uint8) * 255
     return warped
