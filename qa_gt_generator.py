@@ -10,12 +10,7 @@ import argparse
 from typing import List, Tuple, Dict
 import numpy as np
 import cv2
-try:
-    import webcolors  # for mapping hex to closest CSS3 color name
-    HAS_WEBCOLORS = True
-except Exception:
-    webcolors = None
-    HAS_WEBCOLORS = False
+import webcolors
 
 def to_posix(rel_path: str) -> str:
     return rel_path.replace("\\", "/")
@@ -61,7 +56,7 @@ def load_aug(aug_dir: str) -> Tuple[np.ndarray, Dict[str, np.ndarray]]:
 
 def connected_components_bboxes(mask: np.ndarray, min_area: int = 0) -> Tuple[List[List[int]], np.ndarray]:
     """
-    Computes 8-connected components on a binary mask (0/255), with optional area filtering.
+    Computes 8-connected components on a binary mask (0/255)
     Returns (bboxes, filtered_mask), where bboxes is a list of [x1,y1,x2,y2] (inclusive)
     for each kept instance, and filtered_mask is a binary mask (0/255) containing only
     the kept instances.
@@ -69,7 +64,6 @@ def connected_components_bboxes(mask: np.ndarray, min_area: int = 0) -> Tuple[Li
     """
     if mask.dtype != np.uint8:
         mask = mask.astype(np.uint8)
-    # OpenCV expects 0/1 or 0/255; both work. We'll convert to 0/1 for safety.
     bin01 = (mask > 0).astype(np.uint8)
     num, labels, stats, centroids = cv2.connectedComponentsWithStats(bin01, connectivity=8)
     min_area = max(int(min_area), 0)
@@ -141,30 +135,35 @@ def most_frequent_color_hex(rgb_bgr: np.ndarray, mask: np.ndarray, bin_size: int
 
 def closest_css3_color_name(hex_str: str) -> str:
     """
-    Return exact CSS3 name if available; otherwise the closest CSS3 name by RGB distance.
+    Return exact CSS3 name if available; otherwise the closest CSS3 name by RGB distance (webcolors only).
     """
-    if not HAS_WEBCOLORS:
+    if not hex_str or hex_str == "null":
         return "unknown"
     try:
-        return webcolors.hex_to_name(hex_str, spec='css3')
-    except ValueError:
-        # Find nearest among CSS3 named colors
+        return webcolors.hex_to_name(hex_str, spec="css3")
+    except Exception:
+        pass
+    try:
+        tr, tg, tb = tuple(webcolors.hex_to_rgb(hex_str))
+    except Exception:
+        return "unknown"
+    # Use CSS3 name set from webcolors; fall back to internal defs if needed
+    try:
+        from webcolors import CSS3_NAMES_TO_HEX as NAME2HEX 
+    except Exception:
         try:
-            tr, tg, tb = tuple(webcolors.hex_to_rgb(hex_str))
+            from webcolors._definitions import CSS3_NAMES_TO_HEX as NAME2HEX 
         except Exception:
-            return "unknown"
-        best_name = "unknown"
-        best_dist = None
-        for name, hex_code in webcolors.CSS3_NAMES_TO_HEX.items():
-            r, g, b = tuple(webcolors.hex_to_rgb(hex_code))
-            dr = tr - r
-            dg = tg - g
-            db = tb - b
-            dist = dr*dr + dg*dg + db*db
-            if best_dist is None or dist < best_dist:
-                best_dist = dist
-                best_name = name
-        return best_name
+            NAME2HEX = {}
+    if not NAME2HEX:
+        return "unknown"
+    best_name, best_d2 = "unknown", None
+    for name, hx in NAME2HEX.items():
+        r, g, b = tuple(webcolors.hex_to_rgb(hx))
+        d2 = (tr - r) ** 2 + (tg - g) ** 2 + (tb - b) ** 2
+        if best_d2 is None or d2 < best_d2:
+            best_d2, best_name = d2, name
+    return best_name
 
 def comp_name_from_filename(fname: str) -> str:
     """
@@ -235,15 +234,15 @@ def build_records_for_component(
     records.append({
         "id": f"{aug_name}_{slug}_color",
         "images": [aug_rel_image_path],
-        "meta": {**meta_base, "color_space": "hex"},
+        "meta": {**meta_base, "color_format": "hex+css3_name"},
         "conversations": [
-            {"from": "human", "value": f"<image>\nFor the component type: {label}.\nQuestion: Return the color as a hex string like \"#RRGGBB\" if present, otherwise return null. Reply with a single token."},
-            {"from": "gpt", "value": color_hex if present else "null"}
-            # {"from": "human", "value": f"<image>\nFor the component type: {label}.\nQuestion: Return JSON with the color hex and closest CSS3 name like {{\"hex\":\"#RRGGBB\",\"name\":\"red\"}} if present; otherwise return null."},
-            # {"from": "gpt", "value": color_json_str}
+            {"from": "human", "value": f"<image>\nFor the component type: {label}.\nQuestion: Return JSON with the color hex and closest CSS3 name like {{\"hex\":\"#RRGGBB\",\"name\":\"red\"}} if present; otherwise return null."},
+            {"from": "gpt", "value": color_json_str}
+            # {"from": "human", "value": f"<image>\nFor the component type: {label}.\nQuestion: Return the color as a hex string like \"#RRGGBB\" if present, otherwise return null. Reply with a single token."},
+            # {"from": "gpt", "value": color_hex if present else "null"}
         ]
     })
-
+            
     # BBoxes
     # Build the JSON string exactly as required: {"bboxes":[[x1,y1,x2,y2],...]} or null
     if present:
