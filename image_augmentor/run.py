@@ -5,8 +5,11 @@ CLI entry for TFT augmentation. Run from with_label.
 from params import build_arg_parser, load_params_from_args, make_rng
 from dataset import list_sample_folders
 from runner import process_sample
+from colorama import init, Fore, Back, Style
 
 def main():
+    init(autoreset=True)
+
     parser = build_arg_parser()
     args = parser.parse_args()
 
@@ -25,7 +28,8 @@ def main():
         if gen > 0:
             samples_with_output += 1
 
-    print(f"[TOTAL] Generated {total_aug} augmented set(s) across {samples_with_output} sample folder(s).")
+    TOTAL = Back.YELLOW + "[TOTAL]" + Style.RESET_ALL
+    print(f"{TOTAL} Generated {total_aug} augmented set(s) across {samples_with_output} sample folder(s).")
 
 if __name__ == "__main__":
     main()

@@ -11,13 +11,19 @@ from typing import List, Tuple, Dict
 import numpy as np
 import cv2
 import webcolors
+from colorama import init, Fore, Back, Style
+
+OK = Fore.GREEN + "[OK]" + Style.RESET_ALL
+ERR = Fore.RED + "[ERR]" + Style.RESET_ALL
+TOTAL = Back.YELLOW + "[TOTAL]" + Style.RESET_ALL
 
 def to_posix(rel_path: str) -> str:
     return rel_path.replace("\\", "/")
 
 def list_aug_folders(root: str) -> List[str]:
     """
-    Finds all augmentation folders under root
+    Finds all augmented sample folders under root:
+      <root>/<Class>/aug/<Class_n>
     """
     aug_folders: List[str] = []
     for sample_entry in os.scandir(root):
@@ -30,6 +36,24 @@ def list_aug_folders(root: str) -> List[str]:
             if aug_entry.is_dir() and not aug_entry.name.startswith('.'):
                 aug_folders.append(aug_entry.path)
     return aug_folders
+
+def list_defect_folders(root: str) -> List[str]:
+    """
+    Finds all defect sample folders under root:
+      <root>/defect/<Class>_defect/<Class>_defect_n
+    """
+    out: List[str] = []
+    defect_root = os.path.join(root, "defect")
+    if not os.path.isdir(defect_root):
+        return out
+    for class_def in os.scandir(defect_root):
+        if not class_def.is_dir() or class_def.name.startswith('.'):
+            continue
+        # Expect names like "<Class>_defect"
+        for sample_entry in os.scandir(class_def.path):
+            if sample_entry.is_dir() and not sample_entry.name.startswith('.'):
+                out.append(sample_entry.path)
+    return out
 
 def load_aug(aug_dir: str) -> Tuple[np.ndarray, Dict[str, np.ndarray]]:
     """
@@ -189,7 +213,7 @@ def build_records_for_component(
     min_area: int
 ) -> List[Dict]:
     """
-    Build four JSONL records (presence, count, color, bboxes) for a component label/mask.
+    Build three JSONL records (count, color, bboxes) for a component label/mask.
     """
     slug = comp_id_slug(label)
     aug_name = os.path.basename(aug_dir)  # e.g., "27QHD_12"
@@ -203,29 +227,18 @@ def build_records_for_component(
     # Records
     records: List[Dict] = []
 
-    # Presence
-    records.append({
-        "id": f"{aug_name}_{slug}_presence",
-        "images": [aug_rel_image_path],
-        "meta": meta_base,
-        "conversations": [
-            {"from": "human", "value": f"<image>\nFor the component type: {label}.\nQuestion: Is the component present? Reply with yes or no only."},
-            {"from": "gpt", "value": "yes" if present else "no"}
-        ]
-    })
-
-    # Count
+    # Count (component-level)
     records.append({
         "id": f"{aug_name}_{slug}_count",
         "images": [aug_rel_image_path],
         "meta": meta_base,
         "conversations": [
-            {"from": "human", "value": f"<image>\nFor the component type: {label}.\nQuestion: How many are there? Reply with an integer only."},
+            {"from": "human", "value": f"<image>\nFor the component type: {label}.\nQuestion: How many are visible? Reply with an integer only."},
             {"from": "gpt", "value": str(count)}
         ]
     })
 
-    # Color
+    # Color (component-level)
     if present:
         color_name = closest_css3_color_name(color_hex)
         color_json_str = json.dumps({"hex": color_hex, "name": color_name}, separators=(",", ":"))
@@ -236,15 +249,12 @@ def build_records_for_component(
         "images": [aug_rel_image_path],
         "meta": {**meta_base, "color_format": "hex+css3_name"},
         "conversations": [
-            {"from": "human", "value": f"<image>\nFor the component type: {label}.\nQuestion: Return JSON with the color hex and closest CSS3 name like {{\"hex\":\"#RRGGBB\",\"name\":\"red\"}} if present; otherwise return null."},
-            {"from": "gpt", "value": color_json_str}
-            # {"from": "human", "value": f"<image>\nFor the component type: {label}.\nQuestion: Return the color as a hex string like \"#RRGGBB\" if present, otherwise return null. Reply with a single token."},
-            # {"from": "gpt", "value": color_hex if present else "null"}
+            {"from": "human", "value": f"<image>\nFor the component type: {label}.\nQuestion: Return the color as a hex string like \"#RRGGBB\" if present, otherwise return null. Reply with a single token."},
+            {"from": "gpt", "value": color_hex if present else "null"}
         ]
     })
-            
-    # BBoxes
-    # Build the JSON string exactly as required: {"bboxes":[[x1,y1,x2,y2],...]} or null
+
+    # BBoxes (component-level)
     if present:
         bbox_json_str = json.dumps({"bboxes": bboxes}, separators=(",", ":"))
     else:
@@ -264,6 +274,7 @@ def build_records_for_component(
 def generate_qa_for_aug(root: str, aug_dir: str, min_area: int) -> int:
     """
     Generates qa.jsonl inside aug_dir based on aug_image.png and masks/*.png.
+    Also emits a sample-level 'defect present' Q/A using meta.json['defect'] if available.
     Returns number of JSONL lines written.
     """
     rgb_bgr, masks = load_aug(aug_dir)
@@ -273,8 +284,32 @@ def generate_qa_for_aug(root: str, aug_dir: str, min_area: int) -> int:
     aug_image_path = os.path.join(aug_dir, "aug_image.png")
     rel_img = to_posix(os.path.relpath(aug_image_path, root))
 
-    # Build records for each component
+    # Read defect flag from meta.json (default: False if missing)
+    defect_flag = False
+    meta_path = os.path.join(aug_dir, "meta.json")
+    if os.path.isfile(meta_path):
+        try:
+            with open(meta_path, "r", encoding="utf-8") as f:
+                meta_obj = json.load(f)
+            defect_flag = bool(meta_obj.get("defect", False))
+        except Exception:
+            defect_flag = False
+
     all_records: List[Dict] = []
+
+    # Sample-level defect presence record (single per sample)
+    aug_name = os.path.basename(aug_dir)
+    all_records.append({
+        "id": f"{aug_name}_defect_flag",
+        "images": [rel_img],
+        "meta": {"aug_size": [w, h]},
+        "conversations": [
+            {"from": "human", "value": "<image>\nQuestion: Does this image contain a defect? Reply with yes or no only."},
+            {"from": "gpt", "value": "yes" if defect_flag else "no"}
+        ]
+    })
+
+    # Component-level records (count, color, bboxes)
     for fname, mask in sorted(masks.items()):
         label = comp_name_from_filename(fname)
         recs = build_records_for_component(root, aug_dir, rel_img, label, w, h, mask, min_area)
@@ -287,34 +322,49 @@ def generate_qa_for_aug(root: str, aug_dir: str, min_area: int) -> int:
             f.write(json.dumps(rec, ensure_ascii=False))
             f.write("\n")
 
-    print(f"[OK] {aug_dir}: wrote qa.jsonl with {len(all_records)} entries for {len(masks)} component(s).")
+    print(f"{OK} {aug_dir}: wrote qa.jsonl with {len(all_records)} entries for {len(masks)} component(s).")
     return len(all_records)
 
 def main():
-    ap = argparse.ArgumentParser(description="Generate qa.jsonl for each augmented sample folder.")
+    init(autoreset=True)
+    ap = argparse.ArgumentParser(description="Generate qa.jsonl for augmented and/or defect sample folders.")
     ap.add_argument("-r", "--root", default=".", help="Root directory (with_label). Default: current dir")
-    ap.add_argument("--only", nargs="*", help="Optional list of specific aug folder names to process (e.g., 27QHD_12).")
+    ap.add_argument("--only", nargs="*", help="Optional list of specific sample folder names to process (e.g., 27QHD_12 or 27QHD_defect_3).")
     ap.add_argument("--min-area", type=int, default=150, help="Minimum area in pixels for a component instance to be counted and included in bboxes/color. Default: 150")
+    ap.add_argument("--aug-only", action="store_true", help="Process only augmented samples.")
+    ap.add_argument("--defect-only", action="store_true", help="Process only defect samples.")
     args = ap.parse_args()
 
     root = os.path.abspath(args.root)
-    all_aug_dirs = list_aug_folders(root)
+
+    include_aug = True
+    include_defect = True
+    if args.aug_only:
+        include_defect = False
+    if args.defect_only:
+        include_aug = False
+
+    sample_dirs: List[str] = []
+    if include_aug:
+        sample_dirs.extend(list_aug_folders(root))
+    if include_defect:
+        sample_dirs.extend(list_defect_folders(root))
 
     if args.only:
         names = set(args.only)
-        all_aug_dirs = [d for d in all_aug_dirs if os.path.basename(d) in names]
+        sample_dirs = [d for d in sample_dirs if os.path.basename(d) in names]
 
     total_entries = 0
-    total_augsets = 0
-    for aug_dir in all_aug_dirs:
+    total_samples = 0
+    for sample_dir in sample_dirs:
         try:
-            n = generate_qa_for_aug(root, aug_dir, args.min_area)
+            n = generate_qa_for_aug(root, sample_dir, args.min_area)
             total_entries += n
-            total_augsets += 1
+            total_samples += 1
         except Exception as e:
-            print(f"[ERR] {aug_dir}: {e}")
+            print(f"{ERR} {sample_dir}: {e}")
 
-    print(f"[TOTAL] Wrote {total_entries} JSONL lines across {total_augsets} augmented folders.")
+    print(f"{TOTAL} Wrote {total_entries} JSONL lines across {total_samples} sample folders.")
 
 if __name__ == "__main__":
     main()

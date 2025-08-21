@@ -30,6 +30,7 @@ class Augmentor:
             "original_height": H,
             "transforms": {},
             "parameters_used": self.params.copy(),
+            "defect": False,  
         }
 
         # Geometric (consistent RGB+masks)

@@ -13,23 +13,28 @@ from dataset import (
     save_aug_set,
 )
 from augmentor import Augmentor
+from colorama import Fore, Back, Style
+
+OK = Fore.GREEN + "[OK]" + Style.RESET_ALL
+SKIP = Fore.RED + "[SKIP]" + Style.RESET_ALL
+SUMMARY = Back.BLUE + "[SUMMARY]" + Style.RESET_ALL
 
 def process_sample(sample_dir: str, params: Dict, rng) -> int:
     rgb_path = find_rgb_png(sample_dir)
     if not rgb_path:
-        print(f"[SKIP] No PNG image found in {sample_dir}")
+        print(f"{SKIP} No PNG image found in {sample_dir}")
         return 0
 
     import cv2
     rgb = cv2.imread(rgb_path, cv2.IMREAD_COLOR)
     if rgb is None:
-        print(f"[SKIP] Cannot read image: {rgb_path}")
+        print(f"    {SKIP} Cannot read image: {rgb_path}")
         return 0
 
     mask_dir = os.path.join(sample_dir, "masks")
     masks = load_masks(mask_dir)
     if not masks:
-        print(f"[SKIP] No masks found in {mask_dir}")
+        print(f"{SKIP} No masks found in {mask_dir}")
         return 0
 
     # Resolve per-sample max crop against this sample's original size
@@ -53,7 +58,7 @@ def process_sample(sample_dir: str, params: Dict, rng) -> int:
         out_dir = os.path.join(aug_dir, sub_name)
         save_aug_set(out_dir, os.path.basename(rgb_path), rgb_aug, masks_aug, meta)
         generated += 1
-        print(f"[OK] {sample_dir} -> {sub_name} ({generated}/{total_to_generate})")
+        print(f"    {OK} {sample_dir} -> {sub_name} ({generated}/{total_to_generate})")
 
-    print(f"[SUMMARY] {sample_dir}: generated {generated} augmented set(s).")
+    print(f"{SUMMARY} {sample_dir}: generated {generated} augmented set(s).")
     return generated
