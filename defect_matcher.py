@@ -449,7 +449,7 @@ def main():
                     total_accepted += 1
                     class_accepted += 1
                     ds_accepted += 1
-                    print(f"    {Fore.GREEN}[OK]{Style.RESET_ALL} {class_name} <- {os.path.relpath(jp, ds_path)} -> {os.path.basename(info)}  (score>= {args.score_threshold})")
+                    print(f"    {Fore.GREEN}[OK]{Style.RESET_ALL} {class_name} <- {os.path.relpath(jp, ds_path)} -> {os.path.basename(info)}  (score >= {args.score_threshold})")
                 else:
                     print(f"    {Fore.RED}[REJ]{Style.RESET_ALL} {class_name} <- {os.path.relpath(jp, ds_path)} ({info})")
 
