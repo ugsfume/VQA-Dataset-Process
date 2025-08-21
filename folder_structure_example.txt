@@ -1,0 +1,25 @@
+├───215FHD
+│   ├───aug
+│   │   ├───215FHD_1
+│   │   │   └───masks
+│   │   └───215FHD_2
+│   │       └───masks
+│   └───masks
+├───270FHD
+│   ├───aug
+│   │   ├───270FHD_1
+│   │   │   └───masks
+│   │   └───270FHD_2
+│   │       └───masks
+│   └───masks
+└───defect
+    ├───215FHD_defect
+    │   ├───215FHD_defect_1
+    │   │   └───masks
+    │   └───215FHD_defect_2
+    │       └───masks
+    └───27QHD_defect
+        ├───27QHD_defect_1
+        │   └───masks
+        └───27QHD_defect_2
+            └───masks
