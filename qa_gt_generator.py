@@ -233,7 +233,8 @@ def build_records_for_component(
         "images": [aug_rel_image_path],
         "meta": meta_base,
         "conversations": [
-            {"from": "human", "value": f"<image>\nFor the component type: {label}.\nQuestion: How many are visible? Reply with an integer only."},
+            # {"from": "human", "value": f"<image>\nFor the component type: {label}.\nQuestion: How many are visible? Reply with an integer only."},
+            {"from": "human", "value": f"<image>\n针对部件类型： {label}。\n问题：可见数量有多少？请仅回答一个整数。"},
             {"from": "gpt", "value": str(count)}
         ]
     })
@@ -249,7 +250,8 @@ def build_records_for_component(
         "images": [aug_rel_image_path],
         "meta": {**meta_base, "color_format": "hex+css3_name"},
         "conversations": [
-            {"from": "human", "value": f"<image>\nFor the component type: {label}.\nQuestion: Return the color as a hex string like \"#RRGGBB\" if present, otherwise return null. Reply with a single token."},
+            # {"from": "human", "value": f"<image>\nFor the component type: {label}.\nQuestion: Return the color as a hex string like \"#RRGGBB\" if present, otherwise return null. Reply with a single token."},
+            {"from": "human", "value": f"<image>\n针对部件类型： {label}。\n问题：若存在，请以十六进制字符串格式 \"#RRGGBB\" 返回颜色，否则返回 null。请仅回答一个标记。"},
             {"from": "gpt", "value": color_hex if present else "null"}
         ]
     })
@@ -264,7 +266,8 @@ def build_records_for_component(
         "images": [aug_rel_image_path],
         "meta": meta_base,
         "conversations": [
-            {"from": "human", "value": f"<image>\nFor the component type: {label}.\nQuestion: Return JSON exactly as {{\"bboxes\":[[x1,y1,x2,y2],...]}} in THIS IMAGE'S pixel coordinates; if absent return null."},
+            # {"from": "human", "value": f"<image>\nFor the component type: {label}.\nQuestion: Return JSON exactly as {{\"bboxes\":[[x1,y1,x2,y2],...]}} in THIS IMAGE'S pixel coordinates; if absent return null."},
+            {"from": "human", "value": f"<image>\n针对部件类型： {label}。\n问题：若存在，请严格按格式 {{\"bboxes\":[[x1,y1,x2,y2],...]}} 返回该图像像素坐标系中的边界框；若不存在则返回 null。"},
             {"from": "gpt", "value": bbox_json_str}
         ]
     })
@@ -304,8 +307,10 @@ def generate_qa_for_aug(root: str, aug_dir: str, min_area: int) -> int:
         "images": [rel_img],
         "meta": {"aug_size": [w, h]},
         "conversations": [
-            {"from": "human", "value": "<image>\nQuestion: Does this image contain a defect? Reply with yes or no only."},
-            {"from": "gpt", "value": "yes" if defect_flag else "no"}
+            # {"from": "human", "value": "<image>\nQuestion: Does this image contain a defect? Reply with yes or no only."},
+            # {"from": "gpt", "value": "yes" if defect_flag else "no"}
+            {"from": "human", "value": "<image>\n问题：该图像是否存在缺陷？请仅回答是或否。"},
+            {"from": "gpt", "value": "是"}
         ]
     })
 
