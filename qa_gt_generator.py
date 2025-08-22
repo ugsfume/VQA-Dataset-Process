@@ -248,7 +248,8 @@ def build_records_for_component(
     records.append({
         "id": f"{aug_name}_{slug}_color",
         "images": [aug_rel_image_path],
-        "meta": {**meta_base, "color_format": "hex+css3_name"},
+        # "meta": {**meta_base, "color_format": "hex+css3_name"},
+        "meta": {**meta_base, "color_format": "hex"},
         "conversations": [
             # {"from": "human", "value": f"<image>\nFor the component type: {label}.\nQuestion: Return the color as a hex string like \"#RRGGBB\" if present, otherwise return null. Reply with a single token."},
             {"from": "human", "value": f"<image>\n针对部件类型： {label}。\n问题：若存在，请以十六进制字符串格式 \"#RRGGBB\" 返回颜色，否则返回 null。请仅回答一个标记。"},
