@@ -310,7 +310,7 @@ def generate_qa_for_aug(root: str, aug_dir: str, min_area: int) -> int:
             # {"from": "human", "value": "<image>\nQuestion: Does this image contain a defect? Reply with yes or no only."},
             # {"from": "gpt", "value": "yes" if defect_flag else "no"}
             {"from": "human", "value": "<image>\n问题：该图像是否存在缺陷？请仅回答是或否。"},
-            {"from": "gpt", "value": "是"}
+            {"from": "gpt", "value": "是" if defect_flag else "否"}
         ]
     })
 
