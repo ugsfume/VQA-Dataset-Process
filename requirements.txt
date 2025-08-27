@@ -1,4 +1,4 @@
-colorama==0.4.6
-numpy==2.3.2
+colorama
+numpy
 opencv_python==4.12.0.88
-webcolors==1.13
+webcolors

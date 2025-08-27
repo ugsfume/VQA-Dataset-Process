@@ -1,6 +1,10 @@
 """
-Combine all per-sample qa.jsonl files (aug + defect) into one qa.jsonl at the dataset root.
-run from with_label
+Combine all per-sample qa.jsonl or qa_mask.jsonl files (aug + defect) into one JSONL at the dataset root.
+Run from with_label.
+
+Usage examples:
+  python qa_concatenator.py -o qa.jsonl          # Combine qa.jsonl files
+  python qa_concatenator.py --mask -o qa_mask.jsonl  # Combine qa_mask.jsonl files
 """
 
 import os
@@ -17,9 +21,10 @@ ERR = Fore.RED + "[ERR]" + Style.RESET_ALL
 INFO = Fore.CYAN + "[INFO]" + Style.RESET_ALL
 
 
-def iter_aug_sample_qa_files(root: str, include_aug: bool, include_defect: bool) -> Generator[str, None, None]:
+def iter_sample_qa_files(root: str, qa_filename: str, include_aug: bool, include_defect: bool) -> Generator[str, None, None]:
     """
-    Yield paths to qa.jsonl files in augmentation and/or defect sample directories.
+    Yield paths to qa_filename files in augmentation and/or defect sample directories.
+    qa_filename: e.g., "qa.jsonl" or "qa_mask.jsonl"
     """
     if include_aug:
         for class_entry in os.scandir(root):
@@ -30,7 +35,7 @@ def iter_aug_sample_qa_files(root: str, include_aug: bool, include_defect: bool)
                 continue
             for sample_entry in os.scandir(aug_dir):
                 if sample_entry.is_dir():
-                    qa_path = os.path.join(sample_entry.path, "qa.jsonl")
+                    qa_path = os.path.join(sample_entry.path, qa_filename)
                     if os.path.isfile(qa_path):
                         yield qa_path
     if include_defect:
@@ -41,13 +46,13 @@ def iter_aug_sample_qa_files(root: str, include_aug: bool, include_defect: bool)
                     continue
                 for sample_entry in os.scandir(class_def.path):
                     if sample_entry.is_dir():
-                        qa_path = os.path.join(sample_entry.path, "qa.jsonl")
+                        qa_path = os.path.join(sample_entry.path, qa_filename)
                         if os.path.isfile(qa_path):
                             yield qa_path
 
 def stream_records(qa_path: str) -> Generator[Dict, None, None]:
     """
-    Stream JSONL records from a qa.jsonl file, skipping blank/comment lines.
+    Stream JSONL records from a qa.jsonl or qa_mask.jsonl file, skipping blank/comment lines.
     """
     with open(qa_path, "r", encoding="utf-8") as f:
         for ln, line in enumerate(f, 1):
@@ -85,6 +90,7 @@ def validate_record(rec: Dict, root: str) -> Tuple[bool, str]:
 
 def merge(
     root: str,
+    qa_filename: str,
     include_aug: bool,
     include_defect: bool,
     shuffle: bool,
@@ -100,12 +106,12 @@ def merge(
     all_records: List[Dict] = []
     seen_ids: dict[str, int] = {}
 
-    qa_files = list(iter_aug_sample_qa_files(root, include_aug, include_defect))
+    qa_files = list(iter_sample_qa_files(root, qa_filename, include_aug, include_defect))
     if not qa_files:
-        print(f"{WARN} No qa.jsonl files found.")
+        print(f"{WARN} No {qa_filename} files found.")
         return []
 
-    print(f"{INFO} Found {len(qa_files)} qa.jsonl source files.")
+    print(f"{INFO} Found {len(qa_files)} {qa_filename} source files.")
 
     for path in qa_files:
         count_in_file = 0
@@ -165,9 +171,10 @@ def write_jsonl(records: List[Dict], out_path: str) -> None:
             f.write("\n")
 
 def main():
-    ap = argparse.ArgumentParser(description="Combine all per-sample qa.jsonl files into one JSONL.")
+    ap = argparse.ArgumentParser(description="Combine all per-sample qa.jsonl or qa_mask.jsonl files into one JSONL.")
     ap.add_argument("-r", "--root", default=".", help="Dataset root (with_label). Default: current dir")
-    ap.add_argument("-o", "--out", default="qa.jsonl", help="Output JSONL filename (placed under root). Default: qa.jsonl")
+    ap.add_argument("-o", "--out", default=None, help="Output JSONL filename (placed under root). If not specified, uses qa.jsonl or qa_mask.jsonl based on --mask.")
+    ap.add_argument("--mask", action="store_true", help="Process qa_mask.jsonl files instead of qa.jsonl.")
     ap.add_argument("--shuffle", action="store_true", help="Shuffle merged records.")
     ap.add_argument("--seed", type=int, default=None, help="Shuffle seed (optional).")
     ap.add_argument("--limit", type=int, default=0, help="Keep only first N records after optional shuffle.")
@@ -184,8 +191,13 @@ def main():
         print(f"{ERR} Both augmentation and defect sources disabled; nothing to do.")
         return
 
+    qa_filename = "qa_mask.jsonl" if args.mask else "qa.jsonl"
+    out_default = "qa_mask.jsonl" if args.mask else "qa.jsonl"
+    out_path = os.path.join(root, args.out if args.out else out_default)
+
     records = merge(
         root=root,
+        qa_filename=qa_filename,
         include_aug=include_aug,
         include_defect=include_defect,
         shuffle=args.shuffle,
@@ -195,7 +207,6 @@ def main():
         seed=args.seed
     )
 
-    out_path = os.path.join(root, args.out)
     write_jsonl(records, out_path)
     print(f"{OK} Wrote consolidated JSONL: {out_path}")
 
