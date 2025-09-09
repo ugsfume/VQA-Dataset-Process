@@ -1,0 +1,102 @@
+{
+  "defect": true,
+  "class": "238QHD",
+  "source_defect_image": "C:\\Users\\tclre\\Downloads\\defect_dataset\\AA_238QHD\\Images\\TSBLK\\0T300_TL454429U0_TLFLR310_1_836.638_491.179_TGMCS_20XNIR_Before_Rear_S_20240602_220113.jpg",
+  "template_image": "C:\\Users\\tclre\\Downloads\\with_label\\238QHD\\238QHD.png",
+  "template_masks_dir": "C:\\Users\\tclre\\Downloads\\with_label\\238QHD\\masks",
+  "normalize_size": 512,
+  "score_threshold": 0.6,
+  "match": {
+    "method": "TM_CCOEFF_NORMED",
+    "score": 0.7022691965103149,
+    "scale": 1.075,
+    "rot_deg": 0,
+    "bbox": {
+      "x1": 264,
+      "y1": 210,
+      "x2": 1304,
+      "y2": 1250,
+      "w": 1041,
+      "h": 1041
+    }
+  },
+  "random_sample_rotation_deg": 180,
+  "color_mask": {
+    "generated": true,
+    "file": "color_mask.png",
+    "components_order_top_to_bottom": [
+      "Drain",
+      "TFT",
+      "VIA_Hole",
+      "Com",
+      "Data",
+      "Gate",
+      "ITO"
+    ],
+    "assigned_colors": {
+      "Drain": {
+        "rgb": [
+          23,
+          190,
+          207
+        ],
+        "hex": "#17BECF",
+        "color_name_zh": "青色"
+      },
+      "TFT": {
+        "rgb": [
+          44,
+          160,
+          44
+        ],
+        "hex": "#2CA02C",
+        "color_name_zh": "绿色"
+      },
+      "VIA_Hole": {
+        "rgb": [
+          214,
+          39,
+          40
+        ],
+        "hex": "#D62728",
+        "color_name_zh": "红色"
+      },
+      "Com": {
+        "rgb": [
+          140,
+          86,
+          75
+        ],
+        "hex": "#8C564B",
+        "color_name_zh": "棕色"
+      },
+      "Data": {
+        "rgb": [
+          227,
+          119,
+          194
+        ],
+        "hex": "#E377C2",
+        "color_name_zh": "粉色"
+      },
+      "Gate": {
+        "rgb": [
+          188,
+          189,
+          34
+        ],
+        "hex": "#BCBD22",
+        "color_name_zh": "橄榄色"
+      },
+      "ITO": {
+        "rgb": [
+          255,
+          127,
+          14
+        ],
+        "hex": "#FF7F0E",
+        "color_name_zh": "橙色"
+      }
+    }
+  }
+}

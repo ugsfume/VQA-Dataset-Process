@@ -1,0 +1,112 @@
+{
+  "defect": true,
+  "class": "238FHD",
+  "source_defect_image": "C:\\Users\\tclre\\Downloads\\defect_dataset\\AA_238FHD_1\\Images\\TSESD\\90_1.jpg",
+  "template_image": "C:\\Users\\tclre\\Downloads\\with_label\\238FHD\\238FHD.png",
+  "template_masks_dir": "C:\\Users\\tclre\\Downloads\\with_label\\238FHD\\masks",
+  "normalize_size": 512,
+  "score_threshold": 0.6,
+  "match": {
+    "method": "TM_CCOEFF_NORMED",
+    "score": 0.8438613414764404,
+    "scale": 1.0,
+    "rot_deg": 90,
+    "bbox": {
+      "x1": 208,
+      "y1": 759,
+      "x2": 1175,
+      "y2": 1726,
+      "w": 968,
+      "h": 968
+    }
+  },
+  "random_sample_rotation_deg": 0,
+  "color_mask": {
+    "generated": true,
+    "file": "color_mask.png",
+    "components_order_top_to_bottom": [
+      "Source",
+      "Drain",
+      "TFT",
+      "VIA_Hole",
+      "Com",
+      "Data",
+      "Gate",
+      "ITO"
+    ],
+    "assigned_colors": {
+      "Source": {
+        "rgb": [
+          227,
+          119,
+          194
+        ],
+        "hex": "#E377C2",
+        "color_name_zh": "粉色"
+      },
+      "Drain": {
+        "rgb": [
+          31,
+          119,
+          180
+        ],
+        "hex": "#1F77B4",
+        "color_name_zh": "蓝色"
+      },
+      "TFT": {
+        "rgb": [
+          44,
+          160,
+          44
+        ],
+        "hex": "#2CA02C",
+        "color_name_zh": "绿色"
+      },
+      "VIA_Hole": {
+        "rgb": [
+          140,
+          86,
+          75
+        ],
+        "hex": "#8C564B",
+        "color_name_zh": "棕色"
+      },
+      "Com": {
+        "rgb": [
+          23,
+          190,
+          207
+        ],
+        "hex": "#17BECF",
+        "color_name_zh": "青色"
+      },
+      "Data": {
+        "rgb": [
+          148,
+          103,
+          189
+        ],
+        "hex": "#9467BD",
+        "color_name_zh": "紫色"
+      },
+      "Gate": {
+        "rgb": [
+          255,
+          127,
+          14
+        ],
+        "hex": "#FF7F0E",
+        "color_name_zh": "橙色"
+      },
+      "ITO": {
+        "rgb": [
+          127,
+          127,
+          127
+        ],
+        "hex": "#7F7F7F",
+        "color_name_zh": "灰色"
+      }
+    }
+  }
+}

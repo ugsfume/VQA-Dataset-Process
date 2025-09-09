@@ -1,0 +1,102 @@
+{
+  "defect": true,
+  "class": "238QHD",
+  "source_defect_image": "C:\\Users\\tclre\\Downloads\\defect_dataset\\AA_238QHD\\Images\\TOLNE\\0T300_TL441442A0_TLFLR910_6_87.657_620.963_TELC2_20XNIR_Before_Rear_S_20240418_194903.jpg",
+  "template_image": "C:\\Users\\tclre\\Downloads\\with_label\\238QHD\\238QHD.png",
+  "template_masks_dir": "C:\\Users\\tclre\\Downloads\\with_label\\238QHD\\masks",
+  "normalize_size": 512,
+  "score_threshold": 0.6,
+  "match": {
+    "method": "TM_CCOEFF_NORMED",
+    "score": 0.677699625492096,
+    "scale": 1.075,
+    "rot_deg": 0,
+    "bbox": {
+      "x1": 279,
+      "y1": 97,
+      "x2": 1319,
+      "y2": 1137,
+      "w": 1041,
+      "h": 1041
+    }
+  },
+  "random_sample_rotation_deg": 90,
+  "color_mask": {
+    "generated": true,
+    "file": "color_mask.png",
+    "components_order_top_to_bottom": [
+      "Drain",
+      "TFT",
+      "VIA_Hole",
+      "Com",
+      "Data",
+      "Gate",
+      "ITO"
+    ],
+    "assigned_colors": {
+      "Drain": {
+        "rgb": [
+          227,
+          119,
+          194
+        ],
+        "hex": "#E377C2",
+        "color_name_zh": "粉色"
+      },
+      "TFT": {
+        "rgb": [
+          44,
+          160,
+          44
+        ],
+        "hex": "#2CA02C",
+        "color_name_zh": "绿色"
+      },
+      "VIA_Hole": {
+        "rgb": [
+          148,
+          103,
+          189
+        ],
+        "hex": "#9467BD",
+        "color_name_zh": "紫色"
+      },
+      "Com": {
+        "rgb": [
+          31,
+          119,
+          180
+        ],
+        "hex": "#1F77B4",
+        "color_name_zh": "蓝色"
+      },
+      "Data": {
+        "rgb": [
+          23,
+          190,
+          207
+        ],
+        "hex": "#17BECF",
+        "color_name_zh": "青色"
+      },
+      "Gate": {
+        "rgb": [
+          188,
+          189,
+          34
+        ],
+        "hex": "#BCBD22",
+        "color_name_zh": "橄榄色"
+      },
+      "ITO": {
+        "rgb": [
+          214,
+          39,
+          40
+        ],
+        "hex": "#D62728",
+        "color_name_zh": "红色"
+      }
+    }
+  }
+}

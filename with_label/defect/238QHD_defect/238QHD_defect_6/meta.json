@@ -1,0 +1,102 @@
+{
+  "defect": true,
+  "class": "238QHD",
+  "source_defect_image": "C:\\Users\\tclre\\Downloads\\defect_dataset\\AA_238QHD\\Images\\TOSPE\\0T300_TL454083U0_TLFLRA10_4_-761.518_-1172.794_TTPIS_20XNIR_Before_Rear_S_20240601_162738.jpg",
+  "template_image": "C:\\Users\\tclre\\Downloads\\with_label\\238QHD\\238QHD.png",
+  "template_masks_dir": "C:\\Users\\tclre\\Downloads\\with_label\\238QHD\\masks",
+  "normalize_size": 512,
+  "score_threshold": 0.6,
+  "match": {
+    "method": "TM_CCOEFF_NORMED",
+    "score": 0.7318689823150635,
+    "scale": 1.075,
+    "rot_deg": 0,
+    "bbox": {
+      "x1": 245,
+      "y1": 55,
+      "x2": 1285,
+      "y2": 1095,
+      "w": 1041,
+      "h": 1041
+    }
+  },
+  "random_sample_rotation_deg": 180,
+  "color_mask": {
+    "generated": true,
+    "file": "color_mask.png",
+    "components_order_top_to_bottom": [
+      "Drain",
+      "TFT",
+      "VIA_Hole",
+      "Com",
+      "Data",
+      "Gate",
+      "ITO"
+    ],
+    "assigned_colors": {
+      "Drain": {
+        "rgb": [
+          188,
+          189,
+          34
+        ],
+        "hex": "#BCBD22",
+        "color_name_zh": "橄榄色"
+      },
+      "TFT": {
+        "rgb": [
+          44,
+          160,
+          44
+        ],
+        "hex": "#2CA02C",
+        "color_name_zh": "绿色"
+      },
+      "VIA_Hole": {
+        "rgb": [
+          140,
+          86,
+          75
+        ],
+        "hex": "#8C564B",
+        "color_name_zh": "棕色"
+      },
+      "Com": {
+        "rgb": [
+          31,
+          119,
+          180
+        ],
+        "hex": "#1F77B4",
+        "color_name_zh": "蓝色"
+      },
+      "Data": {
+        "rgb": [
+          255,
+          127,
+          14
+        ],
+        "hex": "#FF7F0E",
+        "color_name_zh": "橙色"
+      },
+      "Gate": {
+        "rgb": [
+          23,
+          190,
+          207
+        ],
+        "hex": "#17BECF",
+        "color_name_zh": "青色"
+      },
+      "ITO": {
+        "rgb": [
+          127,
+          127,
+          127
+        ],
+        "hex": "#7F7F7F",
+        "color_name_zh": "灰色"
+      }
+    }
+  }
+}

@@ -1,0 +1,113 @@
+{
+  "defect": true,
+  "class": "238FHD",
+  "source_defect_image": "C:\\Users\\tclre\\Downloads\\defect_dataset\\AA_238FHD_1\\Images\\TSRAS\\0T300_TL4C3508D0_TLFLR120_2_751.230_-712.824_TDNPA_20XNIR_Before_Rear_S_20241223_093712.jpg",
+  "template_image": "C:\\Users\\tclre\\Downloads\\with_label\\238FHD\\238FHD.png",
+  "template_masks_dir": "C:\\Users\\tclre\\Downloads\\with_label\\238FHD\\masks",
+  "normalize_size": 512,
+  "score_threshold": 0.6,
+  "match": {
+    "method": "TM_CCOEFF_NORMED",
+    "score": 0.832650899887085,
+    "scale": 1.0,
+    "rot_deg": 180,
+    "bbox": {
+      "x1": 200,
+      "y1": 553,
+      "x2": 1167,
+      "y2": 1520,
+      "w": 968,
+      "h": 968
+    }
+  },
+  "matched_vis": "matched.png",
+  "random_sample_rotation_deg": 90,
+  "color_mask": {
+    "generated": true,
+    "file": "color_mask.png",
+    "components_order_top_to_bottom": [
+      "Source",
+      "Drain",
+      "TFT",
+      "VIA_Hole",
+      "Com",
+      "Data",
+      "Gate",
+      "ITO"
+    ],
+    "assigned_colors": {
+      "Source": {
+        "rgb": [
+          140,
+          86,
+          75
+        ],
+        "hex": "#8C564B",
+        "color_name_zh": "棕色"
+      },
+      "Drain": {
+        "rgb": [
+          214,
+          39,
+          40
+        ],
+        "hex": "#D62728",
+        "color_name_zh": "红色"
+      },
+      "TFT": {
+        "rgb": [
+          188,
+          189,
+          34
+        ],
+        "hex": "#BCBD22",
+        "color_name_zh": "橄榄色"
+      },
+      "VIA_Hole": {
+        "rgb": [
+          255,
+          127,
+          14
+        ],
+        "hex": "#FF7F0E",
+        "color_name_zh": "橙色"
+      },
+      "Com": {
+        "rgb": [
+          31,
+          119,
+          180
+        ],
+        "hex": "#1F77B4",
+        "color_name_zh": "蓝色"
+      },
+      "Data": {
+        "rgb": [
+          23,
+          190,
+          207
+        ],
+        "hex": "#17BECF",
+        "color_name_zh": "青色"
+      },
+      "Gate": {
+        "rgb": [
+          127,
+          127,
+          127
+        ],
+        "hex": "#7F7F7F",
+        "color_name_zh": "灰色"
+      },
+      "ITO": {
+        "rgb": [
+          44,
+          160,
+          44
+        ],
+        "hex": "#2CA02C",
+        "color_name_zh": "绿色"
+      }
+    }
+  }
+}

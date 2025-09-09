@@ -1,0 +1,167 @@
+{
+  "original_width": 1553,
+  "original_height": 1646,
+  "transforms": {
+    "geometric": {
+      "rot90_deg": 270,
+      "small_rotation_deg": 0.0,
+      "shear_kx": 0.0,
+      "shear_ky": 0.0,
+      "stretch_sx": 1.0,
+      "stretch_sy": 1.0,
+      "flip_h": false,
+      "flip_v": false
+    },
+    "photometric": {
+      "hue_shift": -2.356529402870187,
+      "saturation_scale": 0.6388424425770589,
+      "value_scale": 0.955420605678512
+    },
+    "final_crop_resize": {
+      "final_width": 512,
+      "final_height": 512,
+      "crop_applied": true,
+      "crop_box_post_geom": {
+        "x0": 392,
+        "y0": 930,
+        "x1": 904,
+        "y1": 1442
+      },
+      "crop_quad_in_original": [
+        [
+          883.5000000000002,
+          1207.4999999999998
+        ],
+        [
+          883.5000000000002,
+          695.4999999999998
+        ],
+        [
+          1395.5,
+          695.4999999999998
+        ],
+        [
+          1395.5000000000002,
+          1207.4999999999998
+        ]
+      ]
+    }
+  },
+  "parameters_used": {
+    "num_aug_per_sample": 5,
+    "seed": null,
+    "apply_rot90_prob": 0.7,
+    "rot90_choices": [
+      90,
+      180,
+      270
+    ],
+    "apply_small_rotate_prob": 0.0,
+    "max_small_rotate_deg": 15.0,
+    "apply_shear_prob": 0.0,
+    "max_shear_x": 0.15,
+    "max_shear_y": 0.15,
+    "apply_stretch_prob": 0.0,
+    "max_stretch_x_delta": 0.15,
+    "max_stretch_y_delta": 0.15,
+    "apply_flip_h_prob": 0.5,
+    "apply_flip_v_prob": 0.2,
+    "apply_brightness_contrast_prob": 0.7,
+    "max_brightness_delta": 40,
+    "max_contrast_delta": 0.4,
+    "apply_color_jitter_prob": 0.5,
+    "max_hue_delta": 10,
+    "max_saturation_scale_delta": 0.4,
+    "max_value_scale_delta": 0.3,
+    "apply_gaussian_noise_prob": 0.3,
+    "max_noise_std": 12.0,
+    "apply_blur_prob": 0.25,
+    "max_blur_kernel": 5,
+    "min_crop_width": 512,
+    "min_crop_height": 512,
+    "max_crop_width": 512,
+    "max_crop_height": 512
+  },
+  "defect": false,
+  "new_width": 512,
+  "new_height": 512,
+  "original_image": "238QHD.png",
+  "color_mask": {
+    "generated": true,
+    "file": "color_mask.png",
+    "components_order_top_to_bottom": [
+      "Drain",
+      "TFT",
+      "VIA_Hole",
+      "Com",
+      "Data",
+      "Gate",
+      "ITO"
+    ],
+    "assigned_colors": {
+      "Drain": {
+        "rgb": [
+          127,
+          127,
+          127
+        ],
+        "hex": "#7F7F7F",
+        "color_name_zh": "灰色"
+      },
+      "TFT": {
+        "rgb": [
+          140,
+          86,
+          75
+        ],
+        "hex": "#8C564B",
+        "color_name_zh": "棕色"
+      },
+      "VIA_Hole": {
+        "rgb": [
+          227,
+          119,
+          194
+        ],
+        "hex": "#E377C2",
+        "color_name_zh": "粉色"
+      },
+      "Com": {
+        "rgb": [
+          148,
+          103,
+          189
+        ],
+        "hex": "#9467BD",
+        "color_name_zh": "紫色"
+      },
+      "Data": {
+        "rgb": [
+          255,
+          127,
+          14
+        ],
+        "hex": "#FF7F0E",
+        "color_name_zh": "橙色"
+      },
+      "Gate": {
+        "rgb": [
+          23,
+          190,
+          207
+        ],
+        "hex": "#17BECF",
+        "color_name_zh": "青色"
+      },
+      "ITO": {
+        "rgb": [
+          31,
+          119,
+          180
+        ],
+        "hex": "#1F77B4",
+        "color_name_zh": "蓝色"
+      }
+    }
+  }
+}
