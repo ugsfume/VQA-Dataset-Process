@@ -368,7 +368,7 @@ def main():
     ap = argparse.ArgumentParser(description="Generate qa.jsonl for augmented and/or defect sample folders.")
     ap.add_argument("-r", "--root", default=".", help="Root directory (with_label). Default: current dir")
     ap.add_argument("--only", nargs="*", help="Optional list of specific sample folder names to process (e.g., 27QHD_12 or 27QHD_defect_3).")
-    ap.add_argument("--min-area", type=int, default=100, help="Minimum area in pixels for a component instance to be counted and included in bboxes/color. Default: 100")
+    ap.add_argument("--min-area", type=int, default=70, help="Minimum area in pixels for a component instance to be counted and included in bboxes/color. Default: 100")
     ap.add_argument("--aug-only", action="store_true", help="Process only augmented samples.")
     ap.add_argument("--defect-only", action="store_true", help="Process only defect samples.")
     args = ap.parse_args()

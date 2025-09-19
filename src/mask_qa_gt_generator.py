@@ -39,7 +39,7 @@ COLOR_COMPONENTS = [
 # Exclusions
 COUNT_EXCLUDE = {"pxl_ito", "com_hole", "gate", "ito"}
 BBOX_EXCLUDE = {"pxl_ito", "com_hole", "gate", "ito"}
-COORD_EXCLUDE = {"pxl_ito", "com_hole"}  # excluded from reverse-window targets
+COORD_EXCLUDE = {"pxl_ito", "com_hole", "gate", "ito"}  # excluded from reverse-window targets
 
 def to_posix(p: str) -> str:
     return p.replace("\\", "/")
@@ -285,6 +285,9 @@ def process_sample(root: str, sample_dir: str, min_area: int,
 
     records: List[Dict] = []
 
+    # Track components that actually appear in this sample (count > 0)
+    present_labels: set[str] = set()
+
     # Precompute resized masks only if needed elsewhere (keeping for parity)
     component_masks_binary_resized: Dict[str, np.ndarray] = {}
 
@@ -304,6 +307,8 @@ def process_sample(root: str, sample_dir: str, min_area: int,
         bboxes_orig, _ = connected_components_bboxes(mask, min_area)
         count = len(bboxes_orig)
         present = count > 0
+        if present:
+            present_labels.add(label)
         bboxes_scaled = _scale_bboxes_to_size(bboxes_orig, w, h, rw, rh) if present else []
 
         # Save for reverse-window if allowed
@@ -327,13 +332,14 @@ def process_sample(root: str, sample_dir: str, min_area: int,
             records.append(build_bbox_record(sample_name, imgs, label, w, h, bboxes_scaled, present))
 
     # Reverse Color (unchanged)
-    color_to_component: Dict[str,str] = {}
+    color_to_component: Dict[str, str] = {}
     for comp, info in color_assign.items():
         cn = info.get("color_name_zh")
         if cn:
             color_to_component[cn] = comp
 
     for cn, comp in color_to_component.items():
+        is_present = comp in present_labels  # derived from counts
         records.append({
             "id": f"{sample_name}_rev_color_{slug(cn)}",
             "images": imgs,
@@ -342,7 +348,7 @@ def process_sample(root: str, sample_dir: str, min_area: int,
                 "aug_size_rounded": [rw, rh],
                 "reverse": "color_to_component",
                 "color_name": cn,
-                "is_positive": True
+                "is_positive": bool(is_present)  # True only if component exists in this sample
             },
             "conversations": [
                 {
@@ -352,7 +358,7 @@ def process_sample(root: str, sample_dir: str, min_area: int,
                         f"{cn}。\n问题：该颜色在掩膜中对应的组件类型是什么？如无对应类型请返回 null。"
                     )
                 },
-                {"from": "gpt", "value": comp}
+                {"from": "gpt", "value": comp if is_present else "null"}
             ]
         })
 
@@ -375,7 +381,6 @@ def process_sample(root: str, sample_dir: str, min_area: int,
                     "value": (
                         "<image>\n<image>\n第一张：原始RGB图像。第二张：组件掩膜图像。指定颜色："
                         f"{cn}。\n问题：该颜色在掩膜中对应的组件类型是什么？如无对应类型请返回 null。"
-                        "请仅输出组件类型名称或 null。"
                     )
                 },
                 {"from": "gpt", "value": "null"}
@@ -409,12 +414,12 @@ def main():
     ap = argparse.ArgumentParser(description="Generate dual-image mask-based QA (qa_mask.jsonl).")
     ap.add_argument("-r", "--root", default=".", help="with_label root directory.")
     ap.add_argument("--only", nargs="*", help="Specific sample folder names to process.")
-    ap.add_argument("--min-area", type=int, default=100, help="Minimum area (pixels) for counting instances.")
+    ap.add_argument("--min-area", type=int, default=70, help="Minimum area (pixels) for counting instances.")
     ap.add_argument("--aug-only", action="store_true", help="Process only augmented samples.")
     ap.add_argument("--defect-only", action="store_true", help="Process only defect samples.")
     # Reverse QA controls
     ap.add_argument("--rev-color-neg-max", type=int, default=10, help="Max negative unused-color reverse color QAs per sample.")
-    ap.add_argument("--rev-coord-per-sample", type=int, default=5, help="Number of reverse window QAs per sample (sampled from true bboxes).")
+    ap.add_argument("--rev-coord-per-sample", type=int, default=10, help="Number of reverse window QAs per sample (sampled from true bboxes).")
     ap.add_argument("--seed", type=int, default=42, help="Random seed for reproducibility.")
     args = ap.parse_args()
 

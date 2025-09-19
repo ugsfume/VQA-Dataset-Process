@@ -204,7 +204,7 @@ def build_color_mask(sample_dir: Path, force: bool, rng: random.Random, dry: boo
         # Resize if dimension mismatch
         if mask_arr.shape[1] != width or mask_arr.shape[0] != height:
             mask_arr = np.array(Image.fromarray(mask_arr).resize((width, height), resample=Image.NEAREST))
-        bin_mask = mask_arr > 0  # treat >0 as foreground
+        bin_mask = mask_arr > 128  # treat >128 as foreground
         rgb = assignments[comp]["rgb"]
         # Overlay: overwrite underlying colors (since this comp is above)
         canvas[bin_mask] = rgb
