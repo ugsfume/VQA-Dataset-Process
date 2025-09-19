@@ -7,8 +7,8 @@ Extract:
 Write results to result.json (or custom --out).
 Usage:
   python ../../../src/eval_repair/eval_compute.py \
-    --in ./gpt_eval_qwen_dual_rehearsal_2_pred_7b_3165.json \
-    --out ./gpt_result_qwen_dual_rehearsal_2_pred_7b_3165.json
+    --in ./gpt5_eval_qwen_dual_rehearsal_pred_7b_250.json \
+    --out ./gpt5_result_qwen_dual_rehearsal_pred_7b_250.json
 """
 import json
 import re
