@@ -1,0 +1,196 @@
+{
+  "original_width": 1959,
+  "original_height": 1900,
+  "transforms": {
+    "geometric": {
+      "rot90_deg": 270,
+      "small_rotation_deg": 0.0,
+      "shear_kx": 0.0,
+      "shear_ky": 0.0,
+      "stretch_sx": 1.0,
+      "stretch_sy": 1.0,
+      "flip_h": false,
+      "flip_v": false
+    },
+    "photometric": {
+      "brightness_beta": -12.796900374160955,
+      "contrast_alpha": 1.22491073391404
+    },
+    "final_crop_resize": {
+      "final_width": 504,
+      "final_height": 504,
+      "crop_applied": true,
+      "crop_box_post_geom": {
+        "x0": 200,
+        "y0": 1281,
+        "x1": 704,
+        "y1": 1785
+      },
+      "crop_quad_in_original": [
+        [
+          1310.5000000000005,
+          1729.4999999999998
+        ],
+        [
+          1310.5000000000002,
+          1225.4999999999998
+        ],
+        [
+          1814.5000000000002,
+          1225.4999999999995
+        ],
+        [
+          1814.5000000000005,
+          1729.4999999999995
+        ]
+      ]
+    }
+  },
+  "parameters_used": {
+    "num_aug_per_sample": 5,
+    "seed": null,
+    "apply_rot90_prob": 0.7,
+    "rot90_choices": [
+      90,
+      180,
+      270
+    ],
+    "apply_small_rotate_prob": 0.0,
+    "max_small_rotate_deg": 15.0,
+    "apply_shear_prob": 0.0,
+    "max_shear_x": 0.15,
+    "max_shear_y": 0.15,
+    "apply_stretch_prob": 0.0,
+    "max_stretch_x_delta": 0.15,
+    "max_stretch_y_delta": 0.15,
+    "apply_flip_h_prob": 0.5,
+    "apply_flip_v_prob": 0.2,
+    "apply_brightness_contrast_prob": 0.7,
+    "max_brightness_delta": 40,
+    "max_contrast_delta": 0.4,
+    "apply_color_jitter_prob": 0.5,
+    "max_hue_delta": 10,
+    "max_saturation_scale_delta": 0.4,
+    "max_value_scale_delta": 0.3,
+    "apply_gaussian_noise_prob": 0.3,
+    "max_noise_std": 12.0,
+    "apply_blur_prob": 0.25,
+    "max_blur_kernel": 5,
+    "min_crop_width": 504,
+    "min_crop_height": 504,
+    "max_crop_width": 504,
+    "max_crop_height": 504
+  },
+  "defect": false,
+  "new_width": 504,
+  "new_height": 504,
+  "original_image": "50UD.png",
+  "color_mask": {
+    "generated": true,
+    "file": "color_mask.png",
+    "components_order_top_to_bottom": [
+      "Source",
+      "Drain",
+      "TFT",
+      "VIA_Hole",
+      "Mesh",
+      "Mesh_Hole",
+      "Com",
+      "Data",
+      "Gate",
+      "ITO"
+    ],
+    "assigned_colors": {
+      "Source": {
+        "rgb": [
+          140,
+          86,
+          75
+        ],
+        "hex": "#8C564B",
+        "color_name_zh": "棕色"
+      },
+      "Drain": {
+        "rgb": [
+          255,
+          127,
+          14
+        ],
+        "hex": "#FF7F0E",
+        "color_name_zh": "橙色"
+      },
+      "TFT": {
+        "rgb": [
+          127,
+          127,
+          127
+        ],
+        "hex": "#7F7F7F",
+        "color_name_zh": "灰色"
+      },
+      "VIA_Hole": {
+        "rgb": [
+          23,
+          190,
+          207
+        ],
+        "hex": "#17BECF",
+        "color_name_zh": "青色"
+      },
+      "Mesh": {
+        "rgb": [
+          227,
+          119,
+          194
+        ],
+        "hex": "#E377C2",
+        "color_name_zh": "粉色"
+      },
+      "Mesh_Hole": {
+        "rgb": [
+          214,
+          39,
+          40
+        ],
+        "hex": "#D62728",
+        "color_name_zh": "红色"
+      },
+      "Com": {
+        "rgb": [
+          188,
+          189,
+          34
+        ],
+        "hex": "#BCBD22",
+        "color_name_zh": "橄榄色"
+      },
+      "Data": {
+        "rgb": [
+          44,
+          160,
+          44
+        ],
+        "hex": "#2CA02C",
+        "color_name_zh": "绿色"
+      },
+      "Gate": {
+        "rgb": [
+          31,
+          119,
+          180
+        ],
+        "hex": "#1F77B4",
+        "color_name_zh": "蓝色"
+      },
+      "ITO": {
+        "rgb": [
+          148,
+          103,
+          189
+        ],
+        "hex": "#9467BD",
+        "color_name_zh": "紫色"
+      }
+    }
+  }
+}
