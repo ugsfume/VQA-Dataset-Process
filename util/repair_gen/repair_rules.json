@@ -1,0 +1,128 @@
+{
+    "不修补":
+    {
+        "repair_rule": "不修补。",
+        "operations": [""],
+        "repair_components": [""]
+    },
+    "TOPEN-Gate": 
+    {
+        "repair_rule": "当缺陷发生在Gate组件上时，需检查Gate的断口长度和宽度。有以下三种可能情况：1.当断口的宽度大于等于完好Gate组件最窄处宽度的2/3，同时长度小于300um时，不做修补，需要Turn On T400；2.当断口的宽度小于完好Gate组件最窄处宽度的2/3，同时长度小于300um时，不做修补；3.当断口长度大于等于300um时，不做修补，做报废处理。",
+        "operations": [""],
+        "repair_components": [""]
+    },
+    "TOPEN-Data": 
+    {
+        "repair_rule": "当缺陷发生在Data组件上时，需检查Data的断口长度和宽度。有以下三种可能情况：1.当断口的宽度大于等于完好Data组件最窄处宽度的2/3，同时长度小于300um时，不做修补，需要Turn On T400；2.当断口的宽度小于完好Data组件最窄处宽度的2/3，同时长度小于300um时，不做修补；3.当断口长度大于等于300um时，不做修补，做报废处理。",
+        "operations": [""],
+        "repair_components": [""]
+    },
+    "暗点":
+    {
+        "repair_rule": "当缺陷发生在此组件上时，需做修补。具体手法为：a.在靠近Data线位置激光切断Source组件；b.在靠近ITO位置激光切断Drain组件；c.切断Drain部件的相同路径上覆盖ITO remove。",
+        "operations": ["激光切割", "ITO remove"],
+        "repair_components": ["Source", "Drain"]
+    },
+    "TOPEN-Data&Com":
+    {
+        "repair_rule": "当缺陷同时发生在Data和Com组件上时，需检查Data的断口长度和宽度，需检查Com线是否有断口。有以下三种情况：1.当Data组件断口的宽度大于等于完好Data组件最窄处宽度，同时长度小于300um时，不做修补，需要Turn On T400；2.当Data断口的宽度小于完好Data组件最窄处宽度，同时长度小于300um时，不做修补；3.当Com组件有断口时，不做修补。",
+        "operations": [""],
+        "repair_components": [""]
+    },
+    "TOPEN-ITO":
+    {
+        "repair_rule": "当缺陷发生在ITO组件上时，需检查缺陷的面积大小和ITO组件两边是否同时有断口。有以下三种情况：1.当缺陷面积大于等于ITO组件面积的1/2时，需做修补，具体手法为：a.在靠近Data线位置激光切断Sourcb组件；b.在靠近ITO位置激光切断Drain组件；c.切cDrain部件的相同路径上覆盖ITO remove；2.当ITO组件两边同时有断口时，需做修补，具体手法为：a.在靠近Data线位置激光切断Sourcb组件；b.在靠近ITO位置激光切断Drain组件；c.切断Drain部件的相同路径上覆盖ITO remove；3.当缺陷面积小于ITO组件面积的1/2且ITO组件两边没有同时出现断口时，不做修补。",
+        "operations": ["激光切割", "ITO remove"],
+        "repair_components": ["Source", "Drain"]        
+    },
+    "TSHRT-Gate":
+    {
+        "repair_rule": "当缺陷发生在Gate组件上时，需要检查Gate的断口长度和宽度。有以下三种可能情况， 1.当断口的宽度大于等于完好Gate组件最窄处宽度2/3，同时长度小于300um时，需做修补，具体手法为将缺陷两侧的Gate组件分别激光切断，并Turn On T400；2.当断口小于完好Gate组件最窄处宽度的2/3，同时长度小于300um时，不做修补；3.当断口长度大于等于300um时，不做修补，做报废处理。",
+        "operations": ["激光切割"],
+        "repair_components": ["Gate"]        
+    },
+    "TSHRT-Gate&Data":
+    {
+        "repair_rule": "当缺陷同时发生在Gate和Data组件上时，需要检查Gate的断口长度和宽度以及Data是否有断口。有以下两种可能情况， 1.当Gate断口的宽度大于等于完好Gate组件最窄处宽度2/3，同时长度小于300um时，需做修补，具体手法为将缺陷两侧的Gate组件分别激光切断，并Turn On T400；2.当断口小于完好Gate组件最窄处宽度的2/3时，或当Data组件有断口时，需做修补，具体手法为将缺陷两侧的Data组件分别激光切断，并Turn On T400。",
+        "operations": ["激光切割"],
+        "repair_components": ["Gate", "Data"] 
+    },
+    "TSHRT-Data&Data":
+    {
+        "repair_rule": "当缺陷同时发生在两条Data线上时，需要检查以下三种情况， 1.当缺陷同时出现在ITO区域和Data组件区域，并不与Gate组件相交时，需做修补，具体手法为用激光切割沿着Data线两侧将缺陷部分切断，并在激光切割的路径上覆盖一次ITO remove；2.当缺陷同时出现在Gate和Data组件区域时，需做修补，具体手法为将缺陷两侧的Data线激光切断，并Turn On T400；3.当缺陷同时出现在Gate、Data和ITO组件区域时，需做修补，具体手法为用激光切割沿着Data线两侧将出现在ITO区域的缺陷切断，并在每个激光切割的路径上覆盖一次ITO remove。",
+        "operations": ["激光切割", "ITO remove"],
+        "repair_components": ["defect", "Data"]         
+    },
+    "TSHRT-Data&Com":
+    {
+        "repair_rule": "当缺陷同时发生在Data和Com组件上时，需要检查Data的断口长度和宽度。有以下两种情况，1.当Data断口的宽度大于等于完好Data组件最窄处宽度的2/3，同时长度小于300um时，需做修补，具体手法为用激光切割将缺陷两侧的Data线切断，并Turn On T400；2.当Data断口的宽度小于完好Data组件最窄处宽度的2/3，同时长度小于300um时，需做修补，具体手法为用激光切割分别在Data线两侧将Com线切断，并在每个激光切割的路径上覆盖一次ITO remove；",
+        "operations": ["激光切割", "ITO remove"],
+        "repair_components": ["Data", "Com"]         
+    },
+    "TSHRT-Gate&Gate":
+    {
+        "repair_rule": "当缺陷同时发生在两个Gate组件上时，需要检查以下两种情况，1.当缺陷没有横跨/竖跨一个ITO区域，需做修补，具体手法为用激光切割将两个Gate中间的缺陷区域切断；2.当缺陷横跨/竖跨了一个ITO区域时，需做修补，具体手法为用激光切割分别将出现在ITO和Gate组件之间的缺陷区域切断，同时切割路径不与Com线相交，并在每个激光切割的路径上覆盖一次ITO remove。；",
+        "operations": ["激光切割", "ITO remove"],
+        "repair_components": ["defect"]          
+    },
+    "TSHRT-Gate&Com":
+    {
+        "repair_rule": "当缺陷同时发生在Gate和Com组件上时，需要检查以下两种情况，1.当缺陷没有横跨/竖跨一个ITO区域，需做修补，具体手法为用激光切割将Gate和Com中间的缺陷区域切断；2.当缺陷横跨/竖跨了一个ITO区域时，需做修补，具体手法为用激光切割分别将出现在ITO和Gate组件之间的缺陷区域切断，同时切割路径不与Com线相交，并在每个激光切割的路径上覆盖一次ITO remove。",
+        "operations": ["激光切割", "ITO remove"],
+        "repair_components": ["defect"] 
+    },
+    "Mesh":
+    {
+        "repair_rule": "当缺陷出现在Mesh或Mesh_Hole上时，需做修补，具体手法为用激光切割分别在Gate上方和下方将Mesh组件切断，切割路径只和Mesh组件有相交。",
+        "operations": ["激光切割"],
+        "repair_components": ["Mesh"]         
+    },
+    "TSHRT-Gate&ITO":
+    {
+        "repair_rule": "当缺陷同时发生在Gate和ITO组件区域时，需要检查Gate的断口宽度和长度。有以下两种情况，1.当Gate断口宽度大于等于完好Gate组件最窄处宽度的2/3，同时长度小于300um时，需做修补，具体手法为a.用激光切割将缺陷两端的Gate组件切断，b.在每个激光切割的路径上覆盖一次ITO remove，c.Turn on T400；2.当Gate断口宽度小于完好Gate组件最窄处宽度的2/3，同时长度小于300um时，需做修补，具体手法为用激光切割将Gate与ITO组件中间的缺陷部分切断，并在每个激光切割的路径上覆盖一次ITO remove。",
+        "operations": ["激光切割", "ITO remove"],
+        "repair_components": ["Gate", "defect"]         
+    },
+    "TSHRT-Data&ITO":
+    {
+        "repair_rule": "当缺陷同时发生在Data和ITO组件区域时，需要检查Data的断口宽度和长度。有以下两种情况，1.当Data断口宽度大于等于完好Data组件最窄处宽度的2/3，同时长度小于300um时，需做修补，具体手法为a.用激光切割将缺陷两端的Data组件切断，b.在每个激光切割的路径上覆盖一次ITO remove，c.Turn on T400；2.当Data断口宽度小于完好Data组件最窄处宽度的2/3，同时长度小于300um时，需做修补，具体手法为用激光切割将Data与ITO组件中间的缺陷部分切断，并在每个激光切割的路径上覆盖一次ITO remove。",
+        "operations": ["激光切割", "ITO remove"],
+        "repair_components": ["Data", "defect"]         
+    },
+    "TSHRT-ITO":
+    {
+        "repair_rule": "当缺陷发生在ITO组件上时，需做修补，具体手法为沿着缺陷的外接矩形使用ITO remove。",
+        "operations": ["ITO remove"],
+        "repair_components": ["defect"]         
+    },
+    "TSMRN-Data&ITO":
+    {
+        "repair_rule": "当缺陷同时发生在Data和ITO组件区域时，需做修补，具体手法为用激光切割将Data与ITO中间的缺陷部分切断，并在每个激光切割的路径上覆盖一次ITO remove。",
+        "operations": ["激光切割","ITO remove"],
+        "repair_components": ["defect"]          
+    },
+    "TSMRN-Gate&ITO":
+    {
+        "repair_rule": "当缺陷同时发生在Gate和ITO组件区域时，需做修补，具体手法为用激光切割将Gate与ITO中间的缺陷部分切断.",
+        "operations": ["激光切割"],
+        "repair_components": ["defect"]          
+    },
+    "TSMRN-ITO":
+    {
+        "repair_rule": "当缺陷发生在ITO组件上时，需判断缺陷与几个ITO组件相交，当缺陷只出现在一个ITO上时，需做修补，具体手法为沿着缺陷的外接矩形使用ITO remove；当缺陷出现在多于一个ITO上时，需做修补，具体手法为用激光切割将ITO组件间（避开Data线）缺陷部分切断，并在每一个激光切割的路径上覆盖一次ITO remove。",
+        "operations": ["激光切割","ITO remove"],
+        "repair_components": ["defect"]         
+    },
+    "TSCOK":
+    {
+        "repair_rule": "此种类型缺陷需做修补，首先需要判断缺陷的形状是“U”型还是直线型，当缺陷形状是“U”型时，具体手法为用ITO remove围绕“U”型缺陷轮廓外部一圈，ITO remove路径呈现为一个空心的“U”型；当缺陷形状为直线型时，具体修补手法为用ITO remove沿着缺陷的外接矩形一圈，此时ITO remove路径呈现为一个矩形。然后需要检查上述ITO remove的区域内是否包含TFT组件，或ITO remove路径与TFT组件有相交，如有包含TFT或相交，则需要进行进一步修补，具体手法为a.在靠近Data线位置激光切断Source组件；b.在靠近ITO位置激光切断Drain组件；c.切断Drain部件的相同路径上覆盖ITO remove。",
+        "operations": ["激光切割","ITO remove"],
+        "repair_components": ["defect", "Source", "Drain"]   
+    },
+    "TSCNG":
+    {
+        "repair_rule": "不做修补，需Turn On T400.",
+        "operations": [""],
+        "repair_components": [""]         
+    }
+}
