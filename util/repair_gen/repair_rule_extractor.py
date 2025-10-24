@@ -3,19 +3,25 @@
 """
 repair_rule_extractor.py
 
-Walk negative/random/random_* samples and create per-sample repair_rule.json by:
+Walk samples under a selectable class path (default: negative/random) and create per-sample
+repair_rule.json by:
 - Building defect-region masks from non-rps contours in output.json
-- Intersecting with component masks in masks/*.jpg (thresholded at 128)
+- Intersecting with component masks in masks/*.(png|jpg) (thresholded at 128)
 - Counting distinct component blobs (connected components) per region
 - Mapping detected components (and combos like Data&ITO, Data&Data) to rules via repair_rules_lookup_table.py
 
 Special case:
-- For class 'TSCVD', use defect labels 'TSCOK'/'TSCNG' found in output.json and
-  apply those rule sets directly (ignore other defect labels; ignore component presence).
+- For class 'TSCVD', use defect labels 'TSCOK'/'TSCNG' found in output.json and apply those rule sets directly.
 
 Run from dataset root (e.g., gt_datasets_20250915):
+  # default (negative/random, sample prefix auto 'random_*')
   python repair_rule_extractor.py
-  python repair_rule_extractor.py --only-missing --verbose
+
+  # specify another class path (e.g., positive/coding -> 'coding_*' by default)
+  python repair_rule_extractor.py --class-path positive/coding
+
+  # override sample dir prefix if your folder names don't follow '<last-seg>_*'
+  python repair_rule_extractor.py --class-path positive/coding --sample-prefix SAMPLE
 """
 
 import os
@@ -23,7 +29,7 @@ import sys
 import json
 import argparse
 from glob import glob
-from typing import Dict, List, Tuple, Set, Any
+from typing import Dict, List, Tuple, Set, Any, Optional
 
 import cv2
 import numpy as np
@@ -48,7 +54,6 @@ COMPONENTS_ORDER = [
 COMBO_KEYS = [
     ("Gate", "Data"),
     ("Data", "Com"),
-    ("Gate", "Gate"),   # special: needs count >= 2 in region
     ("Gate", "Com"),
     ("Gate", "TFT"),
     ("Gate", "Drain"),
@@ -59,6 +64,15 @@ COMBO_KEYS = [
     ("Gate", "ITO"),
 ]
 SPECIAL_SAME = {"Data", "Gate"}  # for X&X logic (>=2 blobs)
+
+# ---------- helpers ----------
+def find_first_existing(base_dir: str, stem: str, exts: Tuple[str, ...]) -> Optional[str]:
+    """Return the first existing path like '<base_dir>/<stem><ext>' for any ext in exts."""
+    for ext in exts:
+        p = os.path.join(base_dir, f"{stem}{ext}")
+        if os.path.isfile(p):
+            return p
+    return None
 
 def load_lookup():
     here = os.path.dirname(os.path.abspath(__file__))
@@ -98,19 +112,24 @@ def mask_from_polygon(points: List[List[float]], h: int, w: int) -> np.ndarray:
     return mask
 
 def binarize(img: np.ndarray, thresh: int = 128) -> np.ndarray:
-    """Return uint8 mask 0/255 from grayscale or RGB."""
+    """Return uint8 mask 0/255 from grayscale, BGR, or BGRA."""
     if img is None:
         return None
     if img.ndim == 3:
-        img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        if img.shape[2] == 4:
+            img = cv2.cvtColor(img, cv2.COLOR_BGRA2GRAY)
+        else:
+            img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     _, bw = cv2.threshold(img, thresh, 255, cv2.THRESH_BINARY)
     return bw
 
 def load_component_masks(masks_dir: str, h: int, w: int, thresh: int) -> Dict[str, np.ndarray]:
-    comp = {}
+    """Load component masks from PNG/JPG (case-insensitive)."""
+    comp: Dict[str, np.ndarray] = {}
+    exts = (".png", ".PNG", ".jpg", ".JPG", ".jpeg", ".JPEG")
     for name in COMPONENTS_ORDER:
-        p = os.path.join(masks_dir, f"{name}.jpg")
-        if not os.path.isfile(p):
+        p = find_first_existing(masks_dir, name, exts)
+        if not p:
             continue
         m = binarize(cv2.imread(p, cv2.IMREAD_UNCHANGED), thresh)
         if m is None:
@@ -157,7 +176,6 @@ def region_to_composes(present: Set[str], counts: Dict[str, int]) -> Set[str]:
     # Pairs
     for a, b in COMBO_KEYS:
         if a == b:
-            # already handled by SPECIAL_SAME logic
             continue
         if a in present and b in present:
             out.add(f"{a}&{b}")
@@ -169,8 +187,7 @@ def label_component_masks(comps: Dict[str, np.ndarray]) -> Dict[str, np.ndarray]
     """
     label_maps: Dict[str, np.ndarray] = {}
     for name, cmask in comps.items():
-        lab_count, lab_map = cv2.connectedComponents((cmask > 0).astype(np.uint8), connectivity=8)
-        # lab_map is HxW int32 with values in [0..lab_count-1]
+        _, lab_map = cv2.connectedComponents((cmask > 0).astype(np.uint8), connectivity=8)
         label_maps[name] = lab_map.astype(np.int32, copy=False)
     return label_maps
 
@@ -188,21 +205,15 @@ def detect_region_components_global(
     present: Set[str] = set()
     counts: Dict[str, int] = {}
 
-    if defect_mask.dtype != np.uint8:
-        d01 = (defect_mask > 0).astype(np.uint8)
-    else:
-        d01 = (defect_mask > 0).astype(np.uint8)
-
+    d01 = (defect_mask > 0).astype(np.uint8)
     idx = d01 > 0  # boolean index HxW
     for name, lab_map in comp_labels.items():
         if name not in comps:
             continue
-        # pixels of this component (global) that lie inside the region:
         labels_inside = lab_map[idx]  # 1D view
         area = int(np.count_nonzero(labels_inside))  # any nonzero label = component pixel
         if area >= min_pixels:
             present.add(name)
-            # count unique nonzero global labels overlapping region
             uniq = np.unique(labels_inside)
             uniq = uniq[uniq != 0]
             counts[name] = int(uniq.size)
@@ -216,7 +227,13 @@ def extract_rules_for_sample(sample_dir: str, lookup, thresh: int, min_pixels: i
     out_json = os.path.join(sample_dir, "output.json")
     meta_json = os.path.join(sample_dir, "meta.json")
     masks_dir = os.path.join(sample_dir, "masks")
-    img_path  = os.path.join(sample_dir, "original_image.jpg")
+
+    # Accept either repair_image.(png|jpg|jpeg) or original_image.(png|jpg|jpeg)
+    img_exts = (".png", ".PNG", ".jpg", ".JPG", ".jpeg", ".JPEG")
+    img_path = (
+        find_first_existing(sample_dir, "repair_image", img_exts) or
+        find_first_existing(sample_dir, "original_image", img_exts)
+    )
 
     if not (os.path.isfile(out_json) and os.path.isfile(meta_json) and os.path.isdir(masks_dir)):
         return [], {"skipped": True, "reason": "missing files"}
@@ -227,9 +244,11 @@ def extract_rules_for_sample(sample_dir: str, lookup, thresh: int, min_pixels: i
         return [], {"skipped": True, "reason": "no class in meta.json"}
 
     # Image size
+    if img_path is None:
+        return [], {"skipped": True, "reason": "cannot find repair/original image (png/jpg)"}
     img = cv2.imread(img_path, cv2.IMREAD_UNCHANGED)
     if img is None:
-        return [], {"skipped": True, "reason": "cannot open original_image.jpg"}
+        return [], {"skipped": True, "reason": f"cannot open image: {os.path.basename(img_path)}"}
     h, w = img.shape[:2]
 
     # Load component masks
@@ -252,7 +271,6 @@ def extract_rules_for_sample(sample_dir: str, lookup, thresh: int, min_pixels: i
         rules_out: Dict[str, List[Dict[str, Any]]] = {}
         for key in sorted(found):
             rules = lookup.get_value(key, "") or []
-            # Normalize rule items into desired output schema
             norm_rules = []
             for r in rules:
                 norm_rules.append({
@@ -260,15 +278,12 @@ def extract_rules_for_sample(sample_dir: str, lookup, thresh: int, min_pixels: i
                     "operations": r.get("operations"),
                     "repair_components": r.get("repair_components"),
                 })
-            # de-dup by damaged_component key
             rules_out[key] = norm_rules
-        # Return flattened list
         result = [{"damaged_component": k, "rules": v} for k, v in rules_out.items()]
         dbg = {"skipped": False, "mode": "TSCVD", "subclasses": sorted(found)}
         return result, dbg
 
-    # General case: build defect-region masks and map to comps
-    # Each non-rps contour is one region
+    # General case
     region_composes: List[Set[str]] = []
     used_labels: List[str] = []
     for item in contours:
@@ -285,7 +300,6 @@ def extract_rules_for_sample(sample_dir: str, lookup, thresh: int, min_pixels: i
             region_composes.append(composes)
             used_labels.append(lab)
 
-    # Union across regions but keep unique keys
     all_keys: Set[str] = set()
     for s in region_composes:
         all_keys.update(s)
@@ -313,8 +327,13 @@ def extract_rules_for_sample(sample_dir: str, lookup, thresh: int, min_pixels: i
     return result, dbg
 
 def main():
-    ap = argparse.ArgumentParser(description="Extract repair rules for negative/random samples.")
+    ap = argparse.ArgumentParser(description="Extract repair rules for samples under a class path.")
     ap.add_argument("--root", type=str, default=".", help="Dataset root (run from gt_datasets_20250915).")
+    ap.add_argument("--class-path", type=str, default=os.path.join("negative", "random"),
+                    help="Relative class path under ROOT, e.g. 'negative/random' or 'negative/coding'.")
+    ap.add_argument("--sample-prefix", type=str, default=None,
+                    help="Sample directory prefix inside the class path (e.g., 'random' -> 'random_*'). "
+                         "Defaults to the last segment of --class-path.")
     ap.add_argument("--only-missing", action="store_true", help="Skip samples that already have repair_rule.json.")
     ap.add_argument("--mask-thresh", type=int, default=128, help="Threshold for binarizing component masks.")
     ap.add_argument("--min-pixels", type=int, default=1, help="Minimum intersection pixels to consider a component present.")
@@ -322,16 +341,32 @@ def main():
     args = ap.parse_args()
 
     dataset_root = os.path.abspath(args.root)
-    rnd_root = os.path.join(dataset_root, "negative", "random")
-    if not os.path.isdir(rnd_root):
-        print(f"{ERR} Not found: {rnd_root}")
+
+    # Normalize and resolve class path (support slashes on any OS)
+    class_rel = args.class_path.replace("\\", "/").strip("/")
+
+    class_root = os.path.join(dataset_root, *class_rel.split("/"))
+    if not os.path.isdir(class_root):
+        print(f"{ERR} Not found: {class_root}")
         sys.exit(1)
 
-    lookup = load_lookup()
+    # Determine sample dir prefix (default: last path segment)
+    default_prefix = os.path.basename(class_root.rstrip(os.sep))
+    sample_prefix = args.sample_prefix or default_prefix
 
-    samples = sorted([p for p in glob(os.path.join(rnd_root, "random_*")) if os.path.isdir(p)])
     if args.verbose:
-        print(f"{INFO} Found {len(samples)} samples under {rnd_root}")
+        print(f"{INFO} Using class path: {os.path.relpath(class_root, start=dataset_root)}")
+        print(f"{INFO} Sample prefix: {sample_prefix}_*")
+
+    # Gather samples like '<class_root>/<sample_prefix>_*'
+    samples = sorted([p for p in glob(os.path.join(class_root, f"{sample_prefix}_*")) if os.path.isdir(p)])
+    if args.verbose:
+        print(f"{INFO} Found {len(samples)} samples under {class_root}")
+
+    if not samples:
+        print(f"{WARN} No samples matched pattern: {os.path.join(class_root, f'{sample_prefix}_*')}")
+
+    lookup = load_lookup()
 
     done = 0
     skipped = 0

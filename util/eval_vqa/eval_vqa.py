@@ -50,7 +50,7 @@ try:
     HAS_HF = True
 except Exception:
     HAS_HF = False
-
+from transformers import Qwen3VLMoeForConditionalGeneration, AutoProcessor
 from PIL import Image
 
 # -----------------------

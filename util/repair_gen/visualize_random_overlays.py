@@ -8,7 +8,7 @@ Run from dataset root (e.g., gt_datasets_20250915). Operates ONLY on:
 
 Draws:
 - defect contours (labels NOT starting with 'rps_points:') in CYAN, sharp corners
-- rps_points:10   (laser_cut)      in RED, rounded caps/joins
+- rps_points:10   (laser_cut)      in RED, rounded caps/joins, on top of ITO
 - rps_points:11   (ITO_removal)    in YELLOW @ 0.5 alpha, rounded caps/joins
 - rps_points:110  (U-left / C)     in YELLOW @ 0.5 alpha, same width as ITO_removal
 - rps_points:112  (U-right / rev C)in YELLOW @ 0.5 alpha, same width as ITO_removal
@@ -38,7 +38,7 @@ WARN = Fore.YELLOW + "[WARN]" + Style.RESET_ALL
 ERR  = Fore.RED + "[ERR]" + Style.RESET_ALL
 INFO = Fore.CYAN + "[INFO]" + Style.RESET_ALL
 
-# ---- Colors & widths (keep identical to your other script) ----
+# ---- Colors & widths ----
 DEFECT_COLOR      = (0, 255, 255)     # cyan
 LASER_COLOR       = (255, 0, 0)       # red
 ITO_RGB           = (255, 255, 0)     # yellow
@@ -172,22 +172,20 @@ def process_sample(sample_dir: str, defect_open: bool, verbose: bool=False) -> b
     yellow_overlay = Image.new("RGBA", (w, h), (0, 0, 0, 0))
     draw_yellow = ImageDraw.Draw(yellow_overlay)
 
-    # colors
+    # Overlay for laser cuts to ensure they're on top
+    laser_overlay = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    draw_laser = ImageDraw.Draw(laser_overlay)
+
+    # Colors
     red_rgba   = (*LASER_COLOR, 255)
     cyan_rgba  = (*DEFECT_COLOR, 255)
     yellow_a   = (*ITO_RGB, int(round(ITO_ALPHA_FLOAT * 255)))
 
-    # Draw defects (sharp)
+    # Draw defects (sharp) on base
     for pts in defect_lines:
         ipts = [clamp_point(x, y, w, h) for (x, y) in pts]
         draw_polyline_sharp(draw_base, ipts, color=cyan_rgba, width=DEF_WIDTH,
                             closed=(not defect_open and len(ipts) >= 3))
-
-    # Draw laser cuts (rounded, opaque) rps:10
-    for seg in laser_segs:
-        p1 = clamp_point(seg[0][0], seg[0][1], w, h)
-        p2 = clamp_point(seg[1][0], seg[1][1], w, h)
-        draw_polyline_round(draw_base, [p1, p2], color=red_rgba, width=LASER_WIDTH, closed=False)
 
     # Draw ITO removal (rounded, semi-transparent) rps:11
     for seg in ito_segs:
@@ -211,9 +209,18 @@ def process_sample(sample_dir: str, defect_open: bool, verbose: bool=False) -> b
     # Composite yellow overlay onto base
     composed = Image.alpha_composite(base_rgba, yellow_overlay)
 
+    # Draw laser cuts (rounded, opaque) rps:10 on a separate overlay
+    for seg in laser_segs:
+        p1 = clamp_point(seg[0][0], seg[0][1], w, h)
+        p2 = clamp_point(seg[1][0], seg[1][1], w, h)
+        draw_polyline_round(draw_laser, [p1, p2], color=red_rgba, width=LASER_WIDTH, closed=False)
+
+    # Composite laser overlay onto the composed image
+    final_composed = Image.alpha_composite(composed, laser_overlay)
+
     # Save
     save_path = os.path.join(sample_dir, "repair_image.jpg")
-    composed.convert("RGB").save(save_path, quality=95)
+    final_composed.convert("RGB").save(save_path, quality=95)
     print(f"{OK} Wrote {os.path.relpath(save_path)}")
     return True
 
@@ -224,12 +231,21 @@ def main():
     ap.add_argument("--verbose", action="store_true", help="Verbose logging.")
     args = ap.parse_args()
 
-    random_root = os.path.join(os.path.abspath(args.root), "negative", "random")
+    # random_root = os.path.join(os.path.abspath(args.root), "negative", "random")
+    # if not os.path.isdir(random_root):
+    #     print(f"{ERR} Not found: {random_root}")
+    #     return
+
+    # sample_dirs = sorted([p for p in glob(os.path.join(random_root, "random_*")) if os.path.isdir(p)])
+    # if args.verbose:
+    #     print(f"{INFO} Found {len(sample_dirs)} random sample(s) under {random_root}")
+
+    random_root = os.path.join(os.path.abspath(args.root), "positive", "TSMRN")
     if not os.path.isdir(random_root):
         print(f"{ERR} Not found: {random_root}")
         return
 
-    sample_dirs = sorted([p for p in glob(os.path.join(random_root, "random_*")) if os.path.isdir(p)])
+    sample_dirs = sorted([p for p in glob(os.path.join(random_root, "TSMRN_*")) if os.path.isdir(p)])
     if args.verbose:
         print(f"{INFO} Found {len(sample_dirs)} random sample(s) under {random_root}")
 

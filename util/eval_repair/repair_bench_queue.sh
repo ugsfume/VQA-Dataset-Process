@@ -28,12 +28,20 @@ STREAM_TO_TTY="${STREAM_TO_TTY:-1}"
 # NOTE: save_name must be a filename only (no slashes).
 ###############################################################################
 read -r -d '' QUEUE <<'EOF'
-/mnt/workspace/kennethliu/ckpt/qwen2_5vl-7b_dual_rehearsal_3/stage1a/checkpoint-3495|/mnt/workspace/kennethliu/eval/dual_rehearsal_3/stage1a|qwen_dual_rehearsal_pred_7b_3495.json
-/mnt/workspace/kennethliu/ckpt/qwen2_5vl-7b_dual_rehearsal_3/stage1b/checkpoint-750|/mnt/workspace/kennethliu/eval/dual_rehearsal_3/stage1b|qwen_dual_rehearsal_pred_7b_750.json
-/mnt/workspace/kennethliu/ckpt/qwen2_5vl-7b_dual_rehearsal_3/stage1b/checkpoint-2000|/mnt/workspace/kennethliu/eval/dual_rehearsal_3/stage1b|qwen_dual_rehearsal_pred_7b_2000.json
-/mnt/workspace/kennethliu/ckpt/qwen2_5vl-7b_dual_rehearsal_3/stage2/checkpoint-250|/mnt/workspace/kennethliu/eval/dual_rehearsal_3/stage2|qwen_dual_rehearsal_pred_7b_250.json
+/mnt/workspace/kennethliu/ckpt/qwen2_5vl-32b_expanded_repair/stage2/checkpoint-130|/mnt/workspace/kennethliu/eval/32b_expanded_repair/stage2|qwen_expanded_repair_pred_32b.json
+
+
 EOF
 
+# /mnt/data1/models/Qwen3-VL-8B-Instruct|/mnt/workspace/kennethliu/eval/qwen3_vl_8b/instruct|qwen3_vl_instruct_pred_8b.json
+# /mnt/data1/models/Qwen3-VL-8B-Thinking|/mnt/workspace/kennethliu/eval/qwen3_vl_8b/thinking|qwen3_vl_thinking_pred_8b.json
+# /mnt/data1/models/Qwen3-VL-4B-Instruct|/mnt/workspace/kennethliu/eval/qwen3_vl_4b/instruct|qwen3_vl_instruct_pred_4b.json
+# /mnt/data1/models/Qwen3-VL-4B-Thinking|/mnt/workspace/kennethliu/eval/qwen3_vl_4b/thinking|qwen3_vl_thinking_pred_4b.json
+# /mnt/data1/models/Qwen3-VL-30B-A3B-Thinking|/mnt/workspace/kennethliu/eval/qwen3_vl_30b/thinking|qwen3_vl_thinking_pred_30b.json
+# /mnt/data1/models/Qwen3-VL-30B-A3B-Instruct|/mnt/workspace/kennethliu/eval/qwen3_vl_30b/instruct|qwen3_vl_instruct_pred_30b.json
+# /mnt/data1/models/Qwen3-VL-235B-A22B-Instruct|/mnt/workspace/kennethliu/eval/qwen3_vl_235b/instruct|qwen3_vl_instruct_pred_235b.json
+# /mnt/data1/models/Qwen3-VL-235B-A22B-Thinking|/mnt/workspace/kennethliu/eval/qwen3_vl_235b/thinking|qwen3_vl_thinking_pred_235b.json
+# /mnt/workspace/kennethliu/ckpt/qwen2_5vl-32b_dual_rehearsal/stage2/checkpoint-60|/mnt/workspace/kennethliu/eval/dual_rehearsal_32b/stage2|qwen_dual_rehearsal_pred_7b_60.json
 # /mnt/workspace/kennethliu/ckpt/qwen2_5vl-7b_domain_bbox_judge/vit_llm_freeze_plus_vit2/checkpoint-100|/mnt/workspace/kennethliu/eval/domain_bbox_judge/vit_llm_freeze_plus_vit2|qwen_domain_bbox_judge_pred_7b_100.json
 # /mnt/workspace/kennethliu/ckpt/qwen2_5vl-7b_domain_filtered/vit_llm_freeze/checkpoint-2057|/mnt/workspace/kennethliu/eval/domain_filtered/vit_llm_freeze|qwen_domain_filtered_pred_7b_2057.json
 # /mnt/workspace/kennethliu/ckpt/qwen2_5vl-7b_dual_rehearsal/stage1a/checkpoint-2968|/mnt/workspace/kennethliu/eval/dual_rehearsal/stage1a|qwen_dual_rehearsal_pred_7b_2968.json
@@ -43,6 +51,10 @@ EOF
 # /mnt/workspace/kennethliu/ckpt/qwen2_5vl-7b_mask_domain_mixed/vit_freeze/checkpoint-750|/mnt/workspace/kennethliu/eval/mask_domain_mixed/vit_freeze|qwen_mask_domain_mixed_pred_7b_750.json
 # /mnt/workspace/kennethliu/ckpt/qwen2_5vl-32b_mask_domain_mixed/vit_llm_freeze/checkpoint-750|/mnt/workspace/kennethliu/eval/32b_mask_domain_mixed/vit_llm_freeze|qwen_mask_domain_mixed_pred_32b_750.json
 # /mnt/workspace/kennethliu/ckpt/qwen2_5vl-32b_mask_domain_mixed_judge/vit_llm_freeze/checkpoint-50|/mnt/workspace/kennethliu/eval/32b_mask_domain_mixed_judge/vit_llm_freeze|qwen_mask_domain_mixed_judge_pred_32b_50.json
+# /mnt/workspace/kennethliu/ckpt/qwen2_5vl-7b_dual_rehearsal_3/stage1a/checkpoint-3495|/mnt/workspace/kennethliu/eval/dual_rehearsal_3/stage1a|qwen_dual_rehearsal_pred_7b_3495.json
+# /mnt/workspace/kennethliu/ckpt/qwen2_5vl-7b_dual_rehearsal_3/stage1b/checkpoint-750|/mnt/workspace/kennethliu/eval/dual_rehearsal_3/stage1b|qwen_dual_rehearsal_pred_7b_750.json
+# /mnt/workspace/kennethliu/ckpt/qwen2_5vl-7b_dual_rehearsal_3/stage1b/checkpoint-2000|/mnt/workspace/kennethliu/eval/dual_rehearsal_3/stage1b|qwen_dual_rehearsal_pred_7b_2000.json
+# /mnt/workspace/kennethliu/ckpt/qwen2_5vl-7b_dual_rehearsal_3/stage2/checkpoint-250|/mnt/workspace/kennethliu/eval/dual_rehearsal_3/stage2|qwen_dual_rehearsal_pred_7b_250.json
 
 
 ###############################################################################

@@ -367,37 +367,52 @@ def augment_one_sample(
             # Is this group touched?
             group_touched = leader in touch_leaders or any(m in touch_set for m in members)
 
-            # Per-member delete decisions (independent)
-            will_delete = {}
-            if group_touched and "delete" in allowed_ops:
-                for m in members:
-                    # deletion chance only for the member that is touched directly; optional: allow for both
-                    will_delete[m] = (m in touch_set) and (random.random() < p_delete)
-            else:
-                for m in members:
-                    will_delete[m] = False
+            # --- Group-coherent delete (delete the whole rectangle + cap together) ---
+            group_delete = False
+            will_delete = {m: False for m in members}
 
-            # Shift/scale decision: if ANY member is touched → apply SAME transform to BOTH
+            if group_touched and "delete" in allowed_ops:
+                if len(members) > 1:
+                    # This is the paired group (e.g., 110/112 with its 11 cap) → one decision for the entire group
+                    group_delete = (random.random() < p_delete)
+                    if group_delete:
+                        for m in members:
+                            will_delete[m] = True
+                else:
+                    # Singleton group (e.g., a lone 10 or 11) → keep old per-member behavior
+                    m = members[0]
+                    will_delete[m] = (m in touch_set) and (random.random() < p_delete)
+
+            # If the group is deleted, skip all members and log once
+            if group_delete:
+                ops_log.append({
+                    "label_group": [contours[m]["label"] for m in members],
+                    "op": "delete",
+                    "members": members
+                })
+                augmented_any = True
+                processed.update(members)
+                continue
+
+            # Shift/scale decision (shared within group if touched)
             want_shift = group_touched and ("shift" in allowed_ops)
             want_scale = group_touched and ("scale" in allowed_ops)
 
-            # Compute transform if needed
+            # Compute transform if needed (shared across the group)
             group_params = None
             if want_shift or want_scale:
-                # Use the rectangle if present to define center; otherwise any member line.
+                # Prefer the rectangle (110/112) to define the center; else use the first member line
                 rect_idx = None
-                rect_type = None
                 for m in members:
                     mt = parse_rps_type(contours[m].get("label", ""))
                     if mt in ("110", "112"):
-                        rect_idx = m; rect_type = mt; break
+                        rect_idx = m
+                        break
 
                 if rect_idx is not None:
-                    # center from rectangle diagonal
                     rect_pts = contours[rect_idx].get("points", [])
                     cx, cy = rect_center(rect_pts)
                 else:
-                    # center from first member's segment
                     seg = contours[members[0]].get("points", [])
                     if len(seg) >= 2:
                         p1 = (float(seg[0][0]), float(seg[0][1]))
@@ -412,28 +427,30 @@ def augment_one_sample(
                 sy = 1.0 + gaussian(0.0, scale_std) if want_scale else 1.0
                 group_params = {"cx": cx, "cy": cy, "sx": sx, "sy": sy, "dx": dx, "dy": dy}
 
-            # Apply to each member in this group (respect deletion)
+            # Apply to each member (respect deletions; if no transform, passthrough)
             for m in members:
+                if will_delete.get(m, False):
+                    # For singleton deletion, log at member level
+                    if len(members) == 1:
+                        ops_log.append({
+                            "label": contours[m]["label"],
+                            "op": "delete",
+                            "params": {},
+                            "paired_group": members
+                        })
+                        augmented_any = True
+                    # (group deletion already logged above)
+                    continue
+
                 it_m = contours[m]
                 lbl_m = str(it_m.get("label", ""))
                 typ_m = parse_rps_type(lbl_m)
                 pts_m = it_m.get("points", [])
 
-                if will_delete.get(m, False):
-                    ops_log.append({
-                        "label": lbl_m, "op": "delete",
-                        "params": {}, "paired_group": members
-                    })
-                    augmented_any = True
-                    # don't append this member
-                    continue
-
                 if group_params is None:
-                    # untouched (or only deletions happened for other members)
                     new_contours.append(it_m)
                     continue
 
-                # Shift/scale with group_params (same for both members)
                 cx = group_params["cx"]; cy = group_params["cy"]
                 sx = group_params["sx"]; sy = group_params["sy"]
                 dx = group_params["dx"]; dy = group_params["dy"]
@@ -441,7 +458,7 @@ def augment_one_sample(
                 if typ_m in ("110", "112"):
                     new_pts = transform_rect_with_params(pts_m, image_w, image_h, cx, cy, sx, sy, dx, dy)
                 else:
-                    # lines (10/11) — use same 2D params (not axis-specific) so caps stay closed
+                    # lines (10/11): use the exact same 2D transform so caps stay closed
                     new_pts = transform_line_with_params(pts_m, image_w, image_h, cx, cy, sx, sy, dx, dy)
 
                 new_item = dict(it_m)

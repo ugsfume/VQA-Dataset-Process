@@ -21,7 +21,7 @@ STREAM_TO_TTY="${STREAM_TO_TTY:-1}"
 # QUEUE: One "model_path|out_dir" per line. No spaces around the pipe.
 ###############################################################################
 read -r -d '' QUEUE <<'EOF'
-/mnt/workspace/kennethliu/ckpt/qwen2_5vl-7b_dual_rehearsal_3/stage1b/checkpoint-2000|/mnt/workspace/kennethliu/eval/dual_rehearsal_3/stage1b/eval_results_2000
+/mnt/workspace/kennethliu/ckpt/qwen2_5vl-32b_dual_rehearsal/stage2/checkpoint-60|/mnt/workspace/kennethliu/eval/dual_rehearsal_32b/stage2/eval_results
 EOF
 
 # /mnt/workspace/kennethliu/ckpt/qwen2_5vl-7b_dual_rehearsal_3/stage1a/checkpoint-3495|/mnt/workspace/kennethliu/eval/dual_rehearsal_3/stage1a/eval_results

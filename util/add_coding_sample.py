@@ -5,7 +5,7 @@ add_coding_sample.py
 
 Walk a SOURCE directory recursively, find pairs of:
   - result_<k>.json
-  - result_<k>.jpg OR result_<k>_w.jpg   (the "_w" suffix is treated the same)
+  - result_<k>.png, result_<k>_w.png, result_<k>.jpg, OR result_<k>_w.jpg (prefers _w, then .png over .jpg)
 
 For each found pair, create a new folder in the CURRENT WORKING DIRECTORY
 (the output directory where you run this script) named:
@@ -17,16 +17,18 @@ where:
 
 Inside each created folder:
   - copy the image as "repair_image.jpg"
-  - copy the json  as "output.json"
-  - create "meta.json" recording absolute paths to the original files
+  - copy the json as "output.json"
+  - create "meta.json" recording absolute paths to the original files,
+    plus a user-provided "class" string from CLI.
 
 Usage:
   python add_coding_sample.py /path/to/source \
+      --class TSHRT \
       [--prefix coding] [--dry-run]
 
 Notes:
   - This script COPIES files (does not move).
-  - If both result_<k>.jpg and result_<k>_w.jpg exist, the *_w.jpg is preferred.
+  - Preference order: result_<k>_w.png > result_<k>.png > result_<k>_w.jpg > result_<k>.jpg
 """
 
 import argparse
@@ -41,7 +43,7 @@ from typing import Dict, Optional, Tuple
 from colorama import init as colorama_init, Fore, Style, Back
 colorama_init(autoreset=True)
 LBL_WARN = Fore.YELLOW + "[WARN]" + Style.RESET_ALL
-LBL_ERR = Fore.RED + "[ERR]" + Style.RESET_ALL
+LBL_ERR  = Fore.RED    + "[ERR]"  + Style.RESET_ALL
 LBL_DO   = Fore.GREEN  + "[DO]"   + Style.RESET_ALL
 LBL_INFO = Back.BLUE   + "[INFO]" + Style.RESET_ALL
 LBL_DONE = Back.YELLOW + "[DONE]" + Style.RESET_ALL
@@ -67,20 +69,29 @@ def find_next_start_index(out_dir: Path, prefix: str) -> int:
 
 def pick_image_for_index(dirpath: Path, idx: str) -> Optional[Path]:
     """
-    Prefer 'result_<idx>_w.jpg' if present; otherwise 'result_<idx>.jpg'.
-    Return None if neither exists.
+    Check for image files in this order:
+    1. result_<idx>_w.png
+    2. result_<idx>.png
+    3. result_<idx>_w.jpg
+    4. result_<idx>.jpg
+    Return the first found, or None if none exist.
+    Also checks case-insensitive variants.
     """
-    cand_w = dirpath / f"result_{idx}_w.jpg"
-    cand_plain = dirpath / f"result_{idx}.jpg"
-    if cand_w.exists():
-        return cand_w
-    if cand_plain.exists():
-        return cand_plain
-    # also check for uppercase/lowercase variants just in case
-    for child in dirpath.iterdir():
-        if child.is_file():
-            name = child.name.lower()
-            if name == f"result_{idx}_w.jpg" or name == f"result_{idx}.jpg":
+    # Define candidates in order of preference (PNG preferred over JPG)
+    candidates = [
+        f"result_{idx}_w.png",
+        f"result_{idx}.png",
+        f"result_{idx}_w.jpg",
+        f"result_{idx}.jpg"
+    ]
+    
+    for cand_name in candidates:
+        cand_path = dirpath / cand_name
+        if cand_path.exists():
+            return cand_path
+        # Check case-insensitive variants
+        for child in dirpath.iterdir():
+            if child.is_file() and child.name.lower() == cand_name.lower():
                 return child
     return None
 
@@ -93,7 +104,6 @@ def collect_pairs(source_root: Path) -> Dict[Tuple[Path, str], Tuple[Path, Path]
     pairs = {}
     for dirpath, _, filenames in os.walk(source_root):
         dpath = Path(dirpath)
-        # build a quick lookup for jsons
         for fname in filenames:
             m = JSON_RE.match(fname)
             if not m:
@@ -102,18 +112,18 @@ def collect_pairs(source_root: Path) -> Dict[Tuple[Path, str], Tuple[Path, Path]
             json_path = dpath / fname
             img_path = pick_image_for_index(dpath, idx)
             if img_path is None:
-                # No matching image; skip
                 continue
             pairs[(dpath, idx)] = (img_path, json_path)
     return pairs
 
-def write_meta(out_dir: Path, image_src: Path, json_src: Path) -> None:
+def write_meta(out_dir: Path, image_src: Path, json_src: Path, class_name: str) -> None:
     meta = {
         "created_at": dt.datetime.now().isoformat(timespec="seconds"),
         "source_image": str(image_src.resolve()),
         "source_json": str(json_src.resolve()),
         "source_dir": str(image_src.parent.resolve()),
         "source_stem": image_src.stem,  # e.g. "result_15_w"
+        "class": class_name,            # <— new field
         "script": "add_coding_sample.py",
     }
     with (out_dir / "meta.json").open("w", encoding="utf-8") as f:
@@ -127,6 +137,12 @@ def main():
         "source",
         type=str,
         help="Path to the SOURCE directory to scan recursively (read-only).",
+    )
+    parser.add_argument(
+        "--class", "-c",
+        dest="cls",
+        required=True,
+        help='Class label recorded in meta.json as "class", e.g. TSHRT.',
     )
     parser.add_argument(
         "--prefix",
@@ -151,14 +167,13 @@ def main():
     print(f"{LBL_INFO} Source : {source_root}")
     print(f"{LBL_INFO} Output : {output_root}  (current working directory)")
     print(f"{LBL_INFO} Prefix : {prefix}")
+    print(f"{LBL_INFO} Class  : {args.cls}")
 
-    # Gather all valid pairs
     pairs = collect_pairs(source_root)
     if not pairs:
-        print(f"{LBL_WARN} No valid (result_k.jpg/_w.jpg + result_k.json) pairs found.")
+        print(f"{LBL_WARN} No valid (result_k.png/_w.png/.jpg/_w.jpg + result_k.json) pairs found.")
         return
 
-    # Determine starting index
     next_idx = find_next_start_index(output_root, prefix)
     created = 0
 
@@ -170,7 +185,7 @@ def main():
             out_dir.mkdir(parents=False, exist_ok=False)
             shutil.copy2(img_src, out_dir / "repair_image.jpg")
             shutil.copy2(json_src, out_dir / "output.json")
-            write_meta(out_dir, img_src, json_src)
+            write_meta(out_dir, img_src, json_src, args.cls)
 
         next_idx += 1
         created += 1

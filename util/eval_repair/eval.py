@@ -4,7 +4,12 @@ from typing import List, Dict, Any
 import numpy as np
 import torch
 from tqdm import tqdm
+# --- Qwen2.5 VL  ---
 from transformers import Qwen2_5_VLForConditionalGeneration, AutoProcessor
+# --- MoE class  ---
+# from transformers import Qwen3VLMoeForConditionalGeneration, AutoProcessor
+# --- Dense class for Qwen3-VL ---
+# from transformers import Qwen3VLForConditionalGeneration, AutoProcessor
 from qwen_vl_utils import process_vision_info
 
 def load_json_file(filename: str) -> Any:
@@ -48,13 +53,13 @@ def default_save_name(model_path: str) -> str:
     return f"pred_{parent}_{tail}.json"
 
 def parse_args():
-    p = argparse.ArgumentParser(description="Evaluate Qwen2.5-VL models on TCL auto-repair test JSON.")
+    p = argparse.ArgumentParser(description="Evaluate Qwen3-VL models on TCL auto-repair test JSON.")
     p.add_argument("--model", required=True, help="Path to model directory or HF model ID")
     p.add_argument("--save-dir", required=True, help="Directory to write the output JSON file")
     p.add_argument("--save-name", default=None, help="Output filename (defaults to pred_<parent>_<basename>.json)")
     p.add_argument("--json-path", default="/mnt/workspace/yangsidi/LLaMA-Factory/data/TCL_auto_repair_test_20250524.json",
                    help="Path to the evaluation JSON data")
-    p.add_argument("--max-new-tokens", type=int, default=2048)
+    p.add_argument("--max-new-tokens", type=int, default=4096)
     p.add_argument("--dtype", default="auto", choices=["auto", "float16", "bfloat16", "float32"],
                    help="Torch dtype for model weights")
     p.add_argument("--device-map", default="auto", help='Device map for accelerate/transformers (e.g. "auto")')
@@ -103,17 +108,33 @@ if __name__ == "__main__":
         切割目标：这两条红线并没有切割与缺陷相交的Data线本身。它们横跨了左侧Data线和中间Data线之间的区域（这通常是像素电极区域）。\
         路径重合：根据规则约束，切割路径应仅在Data线上。但图中的红色路径是水平的，并且位于Data线之间的像素区域上，明显与像素区域或其他非Data线组件重合了。\
         结论：图中可视化的切割线不符合所述的修补规则。 不符合的地方：\
-        切割位置错误：规则要求切断与缺陷相交的Data线本身（应为在该Data线上的短切割），但图中的红线是水平切割，横跨在Data线之间的像素区域，并未切割Data线。\
-        违反路径约束：规则要求切割路径仅在Data线上，但图中的红色路径位于像素区域上，与其他组件/区域发生了重合，违反了此约束。\
-        总结来说，正确的做法（根据您描述的规则）应该是在与缺陷相交的那条左侧Data线上，缺陷范围的上方和下方各画一条非常短的、\
-        垂直于Data线（即水平）或者沿着Data线（垂直）的切割线（具体方向取决于实际工艺，但目标是断开Data线），\
-        并且这条短切割线应该仅限于Data线宽度范围内。而图中显示的横跨整个像素区域的水平长切割线是不符合规则的。"
+        切割位置错误：规则要求切断与缺陷相交的Data线本身（应为在该Data线上面的短切割），但图中的红线是水平切割，横跨在Data线之间的像素区域，并未切割Data线。\
+        违反路径约束：规则要求切割路径仅在Data线上，但图中的红色路径位于像素区域上，与其他组件/区域发生了重合，违反了此约束。"
     )
 
     # Load model & processor
+    # --- Qwen2.5-VL ---
     model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
         args.model, torch_dtype=torch_dtype, device_map=args.device_map
     )
+
+    # --- Qwen3-VL MoE  ---
+    # model = Qwen3VLMoeForConditionalGeneration.from_pretrained(
+    #     args.model,
+    #     dtype=torch.bfloat16,          # use bfloat16 (more stable on A100/H100)
+    #     device_map=args.device_map or "auto"
+    # )
+    # model.set_attn_implementation("sdpa")  # avoid FA2/TE kernels
+
+    # --- Qwen3-VL DENSE (this is what your 8B needs) ---
+    # model = Qwen3VLForConditionalGeneration.from_pretrained(
+    #     args.model,
+    #     torch_dtype=torch_dtype,                
+    #     device_map=args.device_map or "auto",
+    #     # attn_implementation="sdpa",           
+    #     # attn_implementation="flash_attention_2"  # optional if FA2 installed
+    # )
+
     processor = AutoProcessor.from_pretrained(args.model)
 
     # Load eval data
