@@ -1,217 +1,76 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
-Generate per-augmentation QA jsonl (qa.jsonl) based on augmented RGB and masks.
-Reads aug_image.png and masks/*.png
-Answers questions about the components in the augmented image: presence, count, bboxes, color (hex and CSS3 name).
+qa_gt_generator.py
+
+Generate per-sample VQA for the Domain Dataset:
+
+  - qa_dual.jsonl : questions refer to both
+        1) aug_image.png   (RGB original)
+        2) color_mask.png  (colored component mask)
+
+  - qa_mask.jsonl : questions refer ONLY to
+        1) color_mask.png  (colored component mask)
+
+Both files contain the same logical QA set (same ids/components/bboxes/etc.);
+only the "images" list and natural language prompts differ.
+
+Ground-truth answers are derived from binary masks + meta.json color
+assignments.
+
+Usage (examples):
+  # Generate both qa_dual.jsonl and qa_mask.jsonl (default)
+  python qa_gt_generator.py -r /path/to/with_label
+
+  # Only dual-image QA
+  python qa_gt_generator.py -r /path/to/with_label --mode dual
+
+  # Only mask-only QA
+  python qa_gt_generator.py -r /path/to/with_label --mode mask
+
+Optional filters:
+  --only SAMPLE_NAME ...
+  --aug-only / --defect-only
 """
 
 import os
 import json
 import argparse
-from typing import List, Tuple, Dict
+from typing import List, Dict, Tuple
 import numpy as np
 import cv2
-import webcolors
-from colorama import init, Fore, Back, Style
+import random
+from colorama import init, Fore, Style
 
+init(autoreset=True)
 OK = Fore.GREEN + "[OK]" + Style.RESET_ALL
 ERR = Fore.RED + "[ERR]" + Style.RESET_ALL
-TOTAL = Back.YELLOW + "[TOTAL]" + Style.RESET_ALL
+TOTAL = Fore.CYAN + "[TOTAL]" + Style.RESET_ALL
 
-# Exclusion sets (compare against slugified component name)
+# Palette Chinese color names (for reverse color negatives)
+PALETTE_COLOR_NAMES_ZH = ["蓝色","橙色","绿色","红色","紫色","棕色","粉色","灰色","橄榄色","青色"]
+
+# Components allowed for COLOR QA (must be present + assigned color)
+COLOR_COMPONENTS = [
+    "Source", "Drain", "TFT", "VIA_Hole", "Mesh", "Mesh_Hole",
+    "Com", "Data", "Gate", "ITO"
+]
+
+# Exclusions
 COUNT_EXCLUDE = {"pxl_ito", "com_hole", "gate", "ito"}
-BBOX_EXCLUDE  = {"pxl_ito", "com_hole", "gate", "ito"}
-COLOR_EXCLUDE = {"pxl_ito", "com_hole"}
+BBOX_EXCLUDE = {"pxl_ito", "com_hole", "gate", "ito"}
+COORD_EXCLUDE = {"pxl_ito", "com_hole", "gate", "ito"}  # excluded from reverse-window targets
 
-def to_posix(rel_path: str) -> str:
-    return rel_path.replace("\\", "/")
 
-def list_aug_folders(root: str) -> List[str]:
-    """
-    Finds all augmented sample folders under root:
-      <root>/<Class>/aug/<Class_n>
-    """
-    aug_folders: List[str] = []
-    for sample_entry in os.scandir(root):
-        if not sample_entry.is_dir() or sample_entry.name.startswith('.'):
-            continue
-        aug_dir = os.path.join(sample_entry.path, "aug")
-        if not os.path.isdir(aug_dir):
-            continue
-        for aug_entry in os.scandir(aug_dir):
-            if aug_entry.is_dir() and not aug_entry.name.startswith('.'):
-                aug_folders.append(aug_entry.path)
-    return aug_folders
+def to_posix(p: str) -> str:
+    return p.replace("\\", "/")
 
-def list_defect_folders(root: str) -> List[str]:
-    """
-    Finds all defect sample folders under root:
-      <root>/defect/<Class>_defect/<Class>_defect_n
-    """
-    out: List[str] = []
-    defect_root = os.path.join(root, "defect")
-    if not os.path.isdir(defect_root):
-        return out
-    for class_def in os.scandir(defect_root):
-        if not class_def.is_dir() or class_def.name.startswith('.'):
-            continue
-        # Expect names like "<Class>_defect"
-        for sample_entry in os.scandir(class_def.path):
-            if sample_entry.is_dir() and not sample_entry.name.startswith('.'):
-                out.append(sample_entry.path)
-    return out
 
-def load_aug(aug_dir: str) -> Tuple[np.ndarray, Dict[str, np.ndarray]]:
-    """
-    Loads RGB image and all masks in aug_dir/masks.
-    """
-    img_path = os.path.join(aug_dir, "aug_image.png")
-    rgb = cv2.imread(img_path, cv2.IMREAD_COLOR)
-    if rgb is None:
-        raise FileNotFoundError(f"Cannot read aug image: {img_path}")
-    masks_dir = os.path.join(aug_dir, "masks")
-    masks: Dict[str, np.ndarray] = {}
-    if os.path.isdir(masks_dir):
-        for f in sorted(os.listdir(masks_dir)):
-            if not f.lower().endswith(".png"):
-                continue
-            p = os.path.join(masks_dir, f)
-            m = cv2.imread(p, cv2.IMREAD_GRAYSCALE)
-            if m is None:
-                continue
-            # Binarize to 0/255
-            m = (m > 127).astype(np.uint8) * 255
-            masks[f] = m
-    return rgb, masks
-
-def connected_components_bboxes(mask: np.ndarray, min_area: int = 0) -> Tuple[List[List[int]], np.ndarray]:
-    """
-    Computes 8-connected components on a binary mask (0/255)
-    Returns (bboxes, filtered_mask), where bboxes is a list of [x1,y1,x2,y2] (inclusive)
-    for each kept instance, and filtered_mask is a binary mask (0/255) containing only
-    the kept instances.
-    Set min_area to filter out tiny specks
-    """
-    if mask.dtype != np.uint8:
-        mask = mask.astype(np.uint8)
-    bin01 = (mask > 0).astype(np.uint8)
-    num, labels, stats, centroids = cv2.connectedComponentsWithStats(bin01, connectivity=8)
-    min_area = max(int(min_area), 0)
-    bboxes: List[List[int]] = []
-    kept_labels: List[int] = []
-    for lbl in range(1, num):  # skip background 0
-        area = int(stats[lbl, cv2.CC_STAT_AREA])
-        if area < min_area:
-            continue
-        x = int(stats[lbl, cv2.CC_STAT_LEFT])
-        y = int(stats[lbl, cv2.CC_STAT_TOP])
-        w = int(stats[lbl, cv2.CC_STAT_WIDTH])
-        h = int(stats[lbl, cv2.CC_STAT_HEIGHT])
-        if w <= 0 or h <= 0:
-            continue
-        x1, y1 = x, y
-        x2, y2 = x + w - 1, y + h - 1  # inclusive
-        bboxes.append([x1, y1, x2, y2])
-        kept_labels.append(lbl)
-    # Build filtered mask containing only kept labels
-    if len(kept_labels) == 0:
-        filtered_mask = np.zeros_like(mask, dtype=np.uint8)
-    else:
-        filtered_mask = np.isin(labels, kept_labels).astype(np.uint8) * 255
-    return bboxes, filtered_mask
-
-def most_frequent_color_hex(rgb_bgr: np.ndarray, mask: np.ndarray, bin_size: int = 16) -> str:
-    '''
-    Quantize masked RGB pixels into coarse bins (pix // bin_size) and linearize to a single bin_idx.
-    Count bins with np.bincount and pick dom = counts.argmax() as the dominant quantized bin.
-    Select pixels whose quantized coords match dom (fallback to all masked pixels if none).
-    Average selected pixels per channel, round to ints and format as "#RRGGBB".
-    Quantization groups similar colors and stabilizes the dominant-color estimate vs raw 24-bit mode.
-    '''
-    if mask is None:
-        return "null"
-    m = (mask > 0).astype(np.uint8) * 255
-    # Erode to remove boundary bleed; fallback to original if erosion empties
-    kernel = np.ones((3, 3), np.uint8)
-    m_e = cv2.erode(m, kernel, iterations=1)
-    use_m = m_e if np.count_nonzero(m_e) > 0 else m
-    if np.count_nonzero(use_m) == 0:
-        return "null"
-
-    # Convert to RGB and select masked pixels
-    rgb = cv2.cvtColor(rgb_bgr, cv2.COLOR_BGR2RGB)
-    pix = rgb[use_m > 0]
-    if pix.size == 0:
-        return "null"
-
-    # Quantize to reduce noise, then find dominant bin
-    q = (pix // bin_size).astype(np.int32)  # values in [0, 255/bin_size]
-    bases = 256 // bin_size
-    bin_idx = (q[:, 0] * bases + q[:, 1]) * bases + q[:, 2]
-    counts = np.bincount(bin_idx, minlength=bases * bases * bases)
-    dom = int(counts.argmax())
-
-    # Extract pixels in dominant bin and take average in original space
-    q0 = dom // (bases * bases)
-    q1 = (dom // bases) % bases
-    q2 = dom % bases
-    sel = (q[:, 0] == q0) & (q[:, 1] == q1) & (q[:, 2] == q2)
-    sel_pix = pix[sel]
-    if sel_pix.size == 0:
-        sel_pix = pix  # fallback
-
-    r, g, b = np.round(sel_pix.mean(axis=0)).astype(int).tolist()
-    return f"#{r:02X}{g:02X}{b:02X}"
-
-def closest_css3_color_name(hex_str: str) -> str:
-    """
-    Return exact CSS3 name if available; otherwise the closest CSS3 name by RGB distance (webcolors only).
-    """
-    if not hex_str or hex_str == "null":
-        return "unknown"
-    try:
-        return webcolors.hex_to_name(hex_str, spec="css3")
-    except Exception:
-        pass
-    try:
-        tr, tg, tb = tuple(webcolors.hex_to_rgb(hex_str))
-    except Exception:
-        return "unknown"
-    # Use CSS3 name set from webcolors; fall back to internal defs if needed
-    try:
-        from webcolors import CSS3_NAMES_TO_HEX as NAME2HEX 
-    except Exception:
-        try:
-            from webcolors._definitions import CSS3_NAMES_TO_HEX as NAME2HEX 
-        except Exception:
-            NAME2HEX = {}
-    if not NAME2HEX:
-        return "unknown"
-    best_name, best_d2 = "unknown", None
-    for name, hx in NAME2HEX.items():
-        r, g, b = tuple(webcolors.hex_to_rgb(hx))
-        d2 = (tr - r) ** 2 + (tg - g) ** 2 + (tb - b) ** 2
-        if best_d2 is None or d2 < best_d2:
-            best_d2, best_name = d2, name
-    return best_name
-
-def comp_name_from_filename(fname: str) -> str:
-    """
-    Derive component name (label) from mask filename. E.g., "Com_Hole.png" -> "Com_Hole".
-    """
-    base = os.path.splitext(os.path.basename(fname))[0]
-    return base
-
-def comp_id_slug(label: str) -> str:
-    """
-    Lowercase component id slug for 'id' construction. E.g., "Com_Hole" -> "com_hole".
-    """
-    return label.replace(" ", "_").replace("-", "_").lower()
-
-# ---------- New helpers for Qwen's resize & bbox scaling ----------
 def _round_to_28_nearest(x: int) -> int:
     down = (x // 28) * 28
     up = ((x + 27) // 28) * 28
-    return up if (x - down) > (up - x) else down
+    return up if (x - down) > (up - x) else down  # ties -> down
+
 
 def _scale_bboxes_to_size(bboxes: List[List[int]], w: int, h: int, rw: int, rh: int) -> List[List[int]]:
     if w <= 0 or h <= 0:
@@ -224,185 +83,576 @@ def _scale_bboxes_to_size(bboxes: List[List[int]], w: int, h: int, rw: int, rh: 
         ny1 = int(round(y1 * sy))
         nx2 = int(round(x2 * sx))
         ny2 = int(round(y2 * sy))
-        # clamp & order
         nx1 = max(0, min(nx1, rw - 1))
         ny1 = max(0, min(ny1, rh - 1))
         nx2 = max(0, min(nx2, rw - 1))
         ny2 = max(0, min(ny2, rh - 1))
-        if nx2 < nx1: nx1, nx2 = nx2, nx1
-        if ny2 < ny1: ny1, ny2 = ny2, ny1
+        if nx2 < nx1:
+            nx1, nx2 = nx2, nx1
+        if ny2 < ny1:
+            ny1, ny2 = ny2, ny1
         out.append([nx1, ny1, nx2, ny2])
     return out
-# ------------------------------------------------------------------
 
-def build_records_for_component(
-    root: str,
-    aug_dir: str,
-    aug_rel_image_path: str,
+
+def _resize_mask_nn(mask: np.ndarray, rw: int, rh: int) -> np.ndarray:
+    resized = cv2.resize(mask, (rw, rh), interpolation=cv2.INTER_NEAREST)
+    return (resized > 0).astype(np.uint8) * 255
+
+
+def list_aug_folders(root: str) -> List[str]:
+    out = []
+    for cls in os.scandir(root):
+        if not cls.is_dir() or cls.name.startswith('.') or cls.name == 'defect':
+            continue
+        aug_dir = os.path.join(cls.path, "aug")
+        if not os.path.isdir(aug_dir):
+            continue
+        for s in os.scandir(aug_dir):
+            if s.is_dir() and not s.name.startswith('.'):
+                out.append(s.path)
+    return out
+
+
+def list_defect_folders(root: str) -> List[str]:
+    out = []
+    defect_root = os.path.join(root, "defect")
+    if not os.path.isdir(defect_root):
+        return out
+    for cls in os.scandir(defect_root):
+        if not cls.is_dir() or cls.name.startswith('.'):
+            continue
+        for s in os.scandir(cls.path):
+            if s.is_dir() and not s.name.startswith('.'):
+                out.append(s.path)
+    return out
+
+
+def load_rgb_and_masks(sample_dir: str) -> Tuple[np.ndarray, Dict[str, np.ndarray]]:
+    img_path = os.path.join(sample_dir, "aug_image.png")
+    rgb = cv2.imread(img_path, cv2.IMREAD_COLOR)
+    if rgb is None:
+        raise FileNotFoundError(f"Missing aug_image.png at {sample_dir}")
+    masks_dir = os.path.join(sample_dir, "masks")
+    masks: Dict[str, np.ndarray] = {}
+    if os.path.isdir(masks_dir):
+        for fname in sorted(os.listdir(masks_dir)):
+            if not fname.lower().endswith(".png"):
+                continue
+            path = os.path.join(masks_dir, fname)
+            m = cv2.imread(path, cv2.IMREAD_GRAYSCALE)
+            if m is None:
+                continue
+            m = (m > 127).astype(np.uint8) * 255
+            masks[fname] = m
+    return rgb, masks
+
+
+def connected_components_bboxes(mask: np.ndarray, min_area: int) -> Tuple[List[List[int]], np.ndarray]:
+    if mask.dtype != np.uint8:
+        mask = mask.astype(np.uint8)
+    bin01 = (mask > 0).astype(np.uint8)
+    num, labels, stats, _ = cv2.connectedComponentsWithStats(bin01, connectivity=8)
+    keep = []
+    bboxes: List[List[int]] = []
+    for lbl in range(1, num):
+        area = int(stats[lbl, cv2.CC_STAT_AREA])
+        if area < min_area:
+            continue
+        x = int(stats[lbl, cv2.CC_STAT_LEFT])
+        y = int(stats[lbl, cv2.CC_STAT_TOP])
+        w = int(stats[lbl, cv2.CC_STAT_WIDTH])
+        h = int(stats[lbl, cv2.CC_STAT_HEIGHT])
+        if w <= 0 or h <= 0:
+            continue
+        x1, y1 = x, y
+        x2, y2 = x + w - 1, y + h - 1
+        bboxes.append([x1, y1, x2, y2])
+        keep.append(lbl)
+    if not keep:
+        filtered = np.zeros_like(mask, dtype=np.uint8)
+    else:
+        filtered = np.isin(labels, keep).astype(np.uint8) * 255
+    return bboxes, filtered
+
+
+def comp_label_from_mask_filename(fname: str) -> str:
+    return os.path.splitext(os.path.basename(fname))[0]
+
+
+def slug(label: str) -> str:
+    return label.replace(" ", "_").replace("-", "_").lower()
+
+
+def load_meta(sample_dir: str) -> dict:
+    mp = os.path.join(sample_dir, "meta.json")
+    if not os.path.isfile(mp):
+        return {}
+    try:
+        with open(mp, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+
+def images_dual_list(root: str, sample_dir: str) -> List[str]:
+    """Dual-image mode: RGB + color_mask if available, otherwise just RGB."""
+    rgb_path = os.path.join(sample_dir, "aug_image.png")
+    mask_path = os.path.join(sample_dir, "color_mask.png")
+    rgb_rel = to_posix(os.path.relpath(rgb_path, root))
+    imgs = [rgb_rel]
+    if os.path.isfile(mask_path):
+        mask_rel = to_posix(os.path.relpath(mask_path, root))
+        imgs.append(mask_rel)
+    return imgs
+
+
+def images_mask_list(root: str, sample_dir: str) -> List[str]:
+    """Mask-only mode: require color_mask.png."""
+    mask_path = os.path.join(sample_dir, "color_mask.png")
+    if not os.path.isfile(mask_path):
+        raise FileNotFoundError(f"Missing color_mask.png for mask-only QA at {sample_dir}")
+    mask_rel = to_posix(os.path.relpath(mask_path, root))
+    return [mask_rel]
+
+
+def build_defect_record(sample_name: str, imgs: List[str], w: int, h: int,
+                        defect_flag: bool, mode: str) -> Dict:
+    if mode == "dual":
+        prefix = "<image>\n<image>\n第一张：原始RGB图像。第二张：组件掩膜图像。（仅用于结构参考，不含缺陷）。"
+    else:
+        prefix = "<image>\n如图所示是一张半导体显示面板的组件掩膜合成图像，其中各组件掩膜以不同颜色区分。（仅用于结构参考，不含缺陷）。"
+    return {
+        "id": f"{sample_name}_defect_flag",
+        "images": imgs,
+        "meta": {
+            "aug_size": [w, h],
+            "aug_size_rounded": [_round_to_28_nearest(w), _round_to_28_nearest(h)]
+        },
+        "conversations": [
+            {
+                "from": "human",
+                "value": f"{prefix}\n问题：原始图像中是否存在缺陷？"
+            },
+            {"from": "gpt", "value": "是" if defect_flag else "否"}
+        ]
+    }
+
+
+def build_count_record(sample_name: str, imgs: List[str], label: str, w: int, h: int,
+                       count: int, mode: str) -> Dict:
+    if mode == "dual":
+        prefix = "<image>\n<image>\n第一张：原始RGB图像。第二张：组件掩膜图像。"
+        note = "（请交叉参考两张图以确保一致性）"
+    else:
+        prefix = "<image>\n如图所示是一张半导体显示面板的组件掩膜合成图像，其中各组件掩膜以不同颜色区分。"
+        note = ""
+    return {
+        "id": f"{sample_name}_{slug(label)}_count",
+        "images": imgs,
+        "meta": {
+            "aug_size": [w, h],
+            "aug_size_rounded": [_round_to_28_nearest(w), _round_to_28_nearest(h)],
+            "component": label
+        },
+        "conversations": [
+            {
+                "from": "human",
+                "value": (
+                    f"\n{prefix}针对组件类型：{label}。\n问题：该类型的组件在掩膜中可见数量是多少？{note}"
+                )
+            },
+            {"from": "gpt", "value": str(count)}
+        ]
+    }
+
+
+def build_color_record(sample_name: str, imgs: List[str], label: str, w: int, h: int,
+                       color_name: str, mode: str) -> Dict:
+    if mode == "dual":
+        prefix = "<image>\n<image>\n第一张：原始RGB图像。第二张：组件掩膜图像。"
+    else:
+        prefix = "<image>\n如图所示是一张半导体显示面板的组件掩膜合成图像，其中各组件掩膜以不同颜色区分。"
+    return {
+        "id": f"{sample_name}_{slug(label)}_color",
+        "images": imgs,
+        "meta": {
+            "aug_size": [w, h],
+            "aug_size_rounded": [_round_to_28_nearest(w), _round_to_28_nearest(h)],
+            "component": label,
+            "color_source": "mask"
+        },
+        "conversations": [
+            {
+                "from": "human",
+                "value": (
+                    f"\n{prefix}针对组件类型：{label}。\n"
+                    "问题：若该类型的组件存在，请返回其掩膜颜色的中文名称；否则返回 null。"
+                )
+            },
+            {"from": "gpt", "value": color_name}
+        ]
+    }
+
+
+def build_bbox_record(sample_name: str, imgs: List[str], label: str, w: int, h: int,
+                      bboxes_scaled: List[List[int]], present: bool, mode: str) -> Dict:
+    bbox_list = [{"bbox_2d": bb, "label": label} for bb in bboxes_scaled] if present else None
+    bbox_json = json.dumps(bbox_list, ensure_ascii=False, separators=(",", ":")) if bbox_list is not None else "null"
+
+    if mode == "dual":
+        prefix = "<image>\n<image>\n第一张：原始RGB图像。第二张：组件掩膜图像。"
+        note = "\n注意：请综合参考两张图像进行判断。"
+    else:
+        prefix = "<image>\n如图所示是一张半导体显示面板的组件掩膜合成图像，其中各组件掩膜以不同颜色区分。"
+        note = ""
+
+    return {
+        "id": f"{sample_name}_{slug(label)}_bboxes",
+        "images": imgs,
+        "meta": {
+            "aug_size": [w, h],
+            "aug_size_rounded": [_round_to_28_nearest(w), _round_to_28_nearest(h)],
+            "component": label
+        },
+        "conversations": [
+            {
+                "from": "human",
+                "value": (
+                    f"\n{prefix}针对组件类型：{label}。\n问题：若存在，请返回所有该部件在图像像素坐标系中的边界框；"
+                    "若不存在则返回 null。" + note
+                )
+            },
+            {"from": "gpt", "value": bbox_json}
+        ]
+    }
+
+
+def build_rev_color_record(sample_name: str, imgs: List[str], w: int, h: int,
+                           cn: str, comp: str | None,
+                           is_positive: bool, mode: str) -> Dict:
+    if mode == "dual":
+        prefix = "<image>\n<image>\n第一张：原始RGB图像。第二张：组件掩膜图像。"
+    else:
+        prefix = "<image>\n如图所示是一张半导体显示面板的组件掩膜合成图像，其中各组件掩膜以不同颜色区分。"
+    return {
+        "id": f"{sample_name}_rev_color_{slug(cn)}",
+        "images": imgs,
+        "meta": {
+            "aug_size": [w, h],
+            "aug_size_rounded": [_round_to_28_nearest(w), _round_to_28_nearest(h)],
+            "reverse": "color_to_component",
+            "color_name": cn,
+            "is_positive": bool(is_positive)
+        },
+        "conversations": [
+            {
+                "from": "human",
+                "value": (
+                    f"\n{prefix}指定颜色：{cn}。\n"
+                    "问题：该颜色在掩膜中对应的组件类型是什么？如无对应类型请返回 null。"
+                )
+            },
+            {"from": "gpt", "value": comp if (is_positive and comp) else "null"}
+        ]
+    }
+
+
+def build_reverse_window_single_record(
+    sample_name: str,
+    imgs: List[str],
+    w: int,
+    h: int,
+    window: Tuple[int,int,int,int],
     label: str,
-    img_w: int,
-    img_h: int,
-    mask: np.ndarray,
-    min_area: int
-) -> List[Dict]:
+    mode: str
+) -> Dict:
+    x1, y1, x2, y2 = window
+    wid = f"{x1}_{y1}_{x2}_{y2}"
+    if mode == "dual":
+        prefix = "<image>\n<image>\n第一张：原始RGB图像。第二张：组件掩膜图像。"
+        note = "\n注意：请综合参考两张图像进行判断。"
+    else:
+        prefix = "<image>\n如图所示是一张半导体显示面板的组件掩膜合成图像，其中各组件掩膜以不同颜色区分。"
+        note = ""
+
+    return {
+        "id": f"{sample_name}_rev_window_{wid}",
+        "images": imgs,
+        "meta": {
+            "aug_size": [w, h],
+            "aug_size_rounded": [_round_to_28_nearest(w), _round_to_28_nearest(h)],
+            "reverse": "window_to_component_single",
+            "window": [x1, y1, x2, y2]
+        },
+        "conversations": [
+            {
+                "from": "human",
+                "value": (
+                    f"\n{prefix}指定窗口区域：[x1={x1},y1={y1},x2={x2},y2={y2}]。\n"
+                    "问题：该窗口内显示的主要组件类型是什么？" + note
+                )
+            },
+            {"from": "gpt", "value": label if label else "null"}
+        ]
+    }
+
+
+def process_sample(
+    root: str,
+    sample_dir: str,
+    min_area: int,
+    rev_color_neg_max: int,
+    rev_coord_per_sample: int,
+    rng: random.Random,
+    modes: List[str]
+) -> Tuple[int, int]:
     """
-    Build JSONL records for a component label/mask (count, color, bboxes) honoring exclusion sets.
+    Process a single sample folder and generate records for dual and/or mask modes.
+
+    Returns:
+        (num_dual_records, num_mask_records)
     """
-    slug = comp_id_slug(label)
-    aug_name = os.path.basename(aug_dir)
-    bboxes, filtered_mask = connected_components_bboxes(mask, min_area=min_area)
-    count = len(bboxes)
-    present = (count > 0)
+    rgb, masks = load_rgb_and_masks(sample_dir)
+    h, w = rgb.shape[:2]
+    rw, rh = _round_to_28_nearest(w), _round_to_28_nearest(h)
 
-    color_hex = most_frequent_color_hex(
-        cv2.imread(os.path.join(aug_dir, "aug_image.png"), cv2.IMREAD_COLOR),
-        filtered_mask
-    )
+    sample_name = os.path.basename(sample_dir)
+    meta = load_meta(sample_dir)
+    defect_flag = bool(meta.get("defect", False))
+    color_assign = meta.get("color_mask", {}).get("assigned_colors", {}) or {}
 
-    # Compute Qwen-rounded target size and scale bboxes to it
-    rw, rh = _round_to_28_nearest(img_w), _round_to_28_nearest(img_h)
-    bboxes_scaled = _scale_bboxes_to_size(bboxes, img_w, img_h, rw, rh) if present else []
+    # Pre-compute image lists
+    imgs_dual = images_dual_list(root, sample_dir) if "dual" in modes else []
+    imgs_mask = images_mask_list(root, sample_dir) if "mask" in modes else []
 
-    meta_base = {"aug_size": [img_w, img_h], "aug_size_rounded": [rw, rh], "component": label}
-    records: List[Dict] = []
+    records_dual: List[Dict] = []
+    records_mask: List[Dict] = []
 
-    # Count (skip if excluded)
-    if slug not in COUNT_EXCLUDE:
-        records.append({
-            "id": f"{aug_name}_{slug}_count",
-            "images": [aug_rel_image_path],
-            "meta": meta_base,
-            "conversations": [
-                {"from": "human", "value": f"<image>\n针对部件类型： {label}。\n问题：可见数量有多少？请仅回答一个整数。"},
-                {"from": "gpt", "value": str(count)}
-            ]
-        })
+    # Track components that actually appear in this sample (count > 0)
+    present_labels: set[str] = set()
 
-    # Color (skip if excluded)
-    if slug not in COLOR_EXCLUDE:
-        if present:
-            records.append({
-                "id": f"{aug_name}_{slug}_color",
-                "images": [aug_rel_image_path],
-                "meta": {**meta_base, "color_format": "hex"},
-                "conversations": [
-                    {"from": "human", "value": f"<image>\n针对部件类型： {label}。\n问题：若存在，请以十六进制字符串格式 \"#RRGGBB\" 返回颜色，否则返回 null。"},
-                    {"from": "gpt", "value": color_hex}
-                ]
-            })
-        else:
-            records.append({
-                "id": f"{aug_name}_{slug}_color",
-                "images": [aug_rel_image_path],
-                "meta": {**meta_base, "color_format": "hex"},
-                "conversations": [
-                    {"from": "human", "value": f"<image>\n针对部件类型： {label}。\n问题：若存在，请以十六进制字符串格式 \"#RRGGBB\" 返回颜色，否则返回 null。"},
-                    {"from": "gpt", "value": "null"}
-                ]
-            })
+    # Precompute resized masks only if needed elsewhere (keeping for parity)
+    component_masks_binary_resized: Dict[str, np.ndarray] = {}
 
-    # BBoxes (skip if excluded) — emit list of {"bbox_2d":[...], "label":"..."} objects
-    if slug not in BBOX_EXCLUDE:
-        if present:
-            bbox_list = [{"bbox_2d": bb, "label": label} for bb in bboxes_scaled]
-            bbox_json_str = json.dumps(bbox_list, ensure_ascii=False, separators=(",", ":"))
-        else:
-            bbox_json_str = "null"
+    # Accumulate bboxes per-component (scaled to rounded size) for reverse-window sampling
+    per_comp_bboxes_scaled: Dict[str, List[List[int]]] = {}
 
-        records.append({
-            "id": f"{aug_name}_{slug}_bboxes",
-            "images": [aug_rel_image_path],
-            "meta": meta_base,
-            "conversations": [
-                {"from": "human", "value": f"<image>\n针对部件类型： {label}。\n问题：若存在，请返回所有该部件在图像像素坐标系中的边界框；若不存在则返回 null。"},
-                {"from": "gpt", "value": bbox_json_str}
-            ]
-        })
+    # Optional defect flag QA (currently not used in original; kept here for completeness)
+    # if "dual" in modes:
+    #     records_dual.append(build_defect_record(sample_name, imgs_dual, w, h, defect_flag, "dual"))
+    # if "mask" in modes:
+    #     records_mask.append(build_defect_record(sample_name, imgs_mask, w, h, defect_flag, "mask"))
 
-    return records
-
-def generate_qa_for_aug(root: str, aug_dir: str, min_area: int) -> int:
-    """
-    Generates qa.jsonl inside aug_dir based on aug_image.png and masks/*.png.
-    Also emits a sample-level 'defect present' Q/A using meta.json['defect'] if available.
-    Returns number of JSONL lines written.
-    """
-    rgb_bgr, masks = load_aug(aug_dir)
-    h, w = rgb_bgr.shape[:2]
-
-    # Relative image path from root
-    aug_image_path = os.path.join(aug_dir, "aug_image.png")
-    rel_img = to_posix(os.path.relpath(aug_image_path, root))
-
-    # Read defect flag from meta.json (default: False if missing)
-    defect_flag = False
-    meta_path = os.path.join(aug_dir, "meta.json")
-    if os.path.isfile(meta_path):
-        try:
-            with open(meta_path, "r", encoding="utf-8") as f:
-                meta_obj = json.load(f)
-            defect_flag = bool(meta_obj.get("defect", False))
-        except Exception:
-            defect_flag = False
-
-    all_records: List[Dict] = []
-
-    # Component-level records (count, color, bboxes)
+    # Iterate components
     for fname, mask in sorted(masks.items()):
-        label = comp_name_from_filename(fname)
-        recs = build_records_for_component(root, aug_dir, rel_img, label, w, h, mask, min_area)
-        all_records.extend(recs)
+        label = comp_label_from_mask_filename(fname)
+        s = slug(label)
 
-    # Write qa.jsonl
-    out_path = os.path.join(aug_dir, "qa.jsonl")
-    with open(out_path, "w", encoding="utf-8") as f:
-        for rec in all_records:
-            f.write(json.dumps(rec, ensure_ascii=False))
-            f.write("\n")
+        # For potential reverse-window check (not strictly necessary now, but kept)
+        if s not in COORD_EXCLUDE:
+            component_masks_binary_resized[label] = (_resize_mask_nn(mask, rw, rh) > 0)
 
-    print(f"{OK} {aug_dir}: wrote qa.jsonl with {len(all_records)} entries for {len(masks)} component(s).")
-    return len(all_records)
+        # BBoxes & count on original; then scale to rounded
+        bboxes_orig, _ = connected_components_bboxes(mask, min_area)
+        count = len(bboxes_orig)
+        present = count > 0
+        if present:
+            present_labels.add(label)
+        bboxes_scaled = _scale_bboxes_to_size(bboxes_orig, w, h, rw, rh) if present else []
+
+        # Save for reverse-window if allowed
+        if s not in COORD_EXCLUDE and bboxes_scaled:
+            per_comp_bboxes_scaled.setdefault(label, []).extend(bboxes_scaled)
+
+        # COUNT
+        if s not in COUNT_EXCLUDE:
+            if "dual" in modes:
+                records_dual.append(
+                    build_count_record(sample_name, imgs_dual, label, w, h, count, "dual")
+                )
+            if "mask" in modes:
+                records_mask.append(
+                    build_count_record(sample_name, imgs_mask, label, w, h, count, "mask")
+                )
+
+        # COLOR
+        if present and label in COLOR_COMPONENTS:
+            assign = color_assign.get(label)
+            if assign:
+                cn = assign.get("color_name_zh")
+                if cn:
+                    if "dual" in modes:
+                        records_dual.append(
+                            build_color_record(sample_name, imgs_dual, label, w, h, cn, "dual")
+                        )
+                    if "mask" in modes:
+                        records_mask.append(
+                            build_color_record(sample_name, imgs_mask, label, w, h, cn, "mask")
+                        )
+
+        # BBOX QA
+        if s not in BBOX_EXCLUDE:
+            if "dual" in modes:
+                records_dual.append(
+                    build_bbox_record(sample_name, imgs_dual, label, w, h, bboxes_scaled, present, "dual")
+                )
+            if "mask" in modes:
+                records_mask.append(
+                    build_bbox_record(sample_name, imgs_mask, label, w, h, bboxes_scaled, present, "mask")
+                )
+
+    # Reverse Color (positive + negatives)
+    color_to_component: Dict[str, str] = {}
+    for comp, info in color_assign.items():
+        cn = info.get("color_name_zh")
+        if cn:
+            color_to_component[cn] = comp
+
+    for cn, comp in color_to_component.items():
+        is_present = comp in present_labels  # derived from counts
+        if "dual" in modes:
+            records_dual.append(
+                build_rev_color_record(sample_name, imgs_dual, w, h, cn, comp, is_present, "dual")
+            )
+        if "mask" in modes:
+            records_mask.append(
+                build_rev_color_record(sample_name, imgs_mask, w, h, cn, comp, is_present, "mask")
+            )
+
+    unused = [c for c in PALETTE_COLOR_NAMES_ZH if c not in color_to_component]
+    rng.shuffle(unused)
+    for cn in unused[:max(0, rev_color_neg_max)]:
+        if "dual" in modes:
+            records_dual.append(
+                build_rev_color_record(sample_name, imgs_dual, w, h, cn, None, False, "dual")
+            )
+        if "mask" in modes:
+            records_mask.append(
+                build_rev_color_record(sample_name, imgs_mask, w, h, cn, None, False, "mask")
+            )
+
+    # Reverse Window (single component): sample from actual bboxes (rounded coords)
+    candidates: List[Tuple[str, List[int]]] = []
+    for label, bbs in per_comp_bboxes_scaled.items():
+        for bb in bbs:
+            candidates.append((label, bb))
+
+    if candidates and rev_coord_per_sample > 0:
+        rng.shuffle(candidates)
+        for label, bb in candidates[:rev_coord_per_sample]:
+            window = tuple(bb)
+            if "dual" in modes:
+                records_dual.append(
+                    build_reverse_window_single_record(sample_name, imgs_dual, w, h, window, label, "dual")
+                )
+            if "mask" in modes:
+                records_mask.append(
+                    build_reverse_window_single_record(sample_name, imgs_mask, w, h, window, label, "mask")
+                )
+
+    # Write outputs
+    n_dual = len(records_dual)
+    n_mask = len(records_mask)
+
+    if "dual" in modes:
+        out_dual = os.path.join(sample_dir, "qa_dual.jsonl")
+        with open(out_dual, "w", encoding="utf-8") as f:
+            for r in records_dual:
+                f.write(json.dumps(r, ensure_ascii=False))
+                f.write("\n")
+
+    if "mask" in modes:
+        out_mask = os.path.join(sample_dir, "qa_mask.jsonl")
+        with open(out_mask, "w", encoding="utf-8") as f:
+            for r in records_mask:
+                f.write(json.dumps(r, ensure_ascii=False))
+                f.write("\n")
+
+    mode_desc = []
+    if "dual" in modes:
+        mode_desc.append(f"qa_dual={n_dual}")
+    if "mask" in modes:
+        mode_desc.append(f"qa_mask={n_mask}")
+    mode_desc_str = ", ".join(mode_desc) if mode_desc else "no outputs"
+
+    print(f"{OK} {sample_dir}: {mode_desc_str} (components={len(masks)})")
+    return n_dual, n_mask
+
 
 def main():
-    init(autoreset=True)
-    ap = argparse.ArgumentParser(description="Generate qa.jsonl for augmented and/or defect sample folders.")
-    ap.add_argument("-r", "--root", default=".", help="Root directory (with_label). Default: current dir")
-    ap.add_argument("--only", nargs="*", help="Optional list of specific sample folder names to process (e.g., 27QHD_12 or 27QHD_defect_3).")
-    ap.add_argument("--min-area", type=int, default=70, help="Minimum area in pixels for a component instance to be counted and included in bboxes/color. Default: 100")
+    ap = argparse.ArgumentParser(
+        description="Generate Domain Dataset VQA (qa_dual.jsonl, qa_mask.jsonl)."
+    )
+    ap.add_argument("-r", "--root", default=".", help="with_label root directory.")
+    ap.add_argument("--only", nargs="*", help="Specific sample folder names to process.")
+    ap.add_argument("--min-area", type=int, default=70, help="Minimum area (pixels) for counting instances.")
     ap.add_argument("--aug-only", action="store_true", help="Process only augmented samples.")
     ap.add_argument("--defect-only", action="store_true", help="Process only defect samples.")
+    # Reverse QA controls
+    ap.add_argument("--rev-color-neg-max", type=int, default=10,
+                    help="Max negative unused-color reverse color QAs per sample.")
+    ap.add_argument("--rev-coord-per-sample", type=int, default=10,
+                    help="Number of reverse window QAs per sample (sampled from true bboxes).")
+    ap.add_argument("--seed", type=int, default=67, help="Random seed for reproducibility.")
+    ap.add_argument(
+        "--mode",
+        choices=["dual", "mask", "both"],
+        default="both",
+        help="Which QA files to generate per sample: dual (qa_dual.jsonl), "
+             "mask (qa_mask.jsonl), or both."
+    )
     args = ap.parse_args()
 
     root = os.path.abspath(args.root)
+    rng = random.Random(args.seed)
 
-    include_aug = True
-    include_defect = True
-    if args.aug_only:
-        include_defect = False
-    if args.defect_only:
-        include_aug = False
+    # Determine modes list
+    if args.mode == "dual":
+        modes = ["dual"]
+    elif args.mode == "mask":
+        modes = ["mask"]
+    else:
+        modes = ["dual", "mask"]
 
     sample_dirs: List[str] = []
-    if include_aug:
+    if not args.defect_only:
         sample_dirs.extend(list_aug_folders(root))
-    if include_defect:
+    if not args.aug_only:
         sample_dirs.extend(list_defect_folders(root))
 
     if args.only:
-        names = set(args.only)
-        sample_dirs = [d for d in sample_dirs if os.path.basename(d) in names]
+        wanted = set(args.only)
+        sample_dirs = [p for p in sample_dirs if os.path.basename(p) in wanted]
 
-    total_entries = 0
-    total_samples = 0
-    for sample_dir in sample_dirs:
+    total_dual = 0
+    total_mask = 0
+    processed = 0
+
+    for sdir in sample_dirs:
         try:
-            n = generate_qa_for_aug(root, sample_dir, args.min_area)
-            total_entries += n
-            total_samples += 1
+            n_dual, n_mask = process_sample(
+                root,
+                sdir,
+                args.min_area,
+                args.rev_color_neg_max,
+                args.rev_coord_per_sample,
+                rng,
+                modes
+            )
+            total_dual += n_dual
+            total_mask += n_mask
+            processed += 1
         except Exception as e:
-            print(f"{ERR} {sample_dir}: {e}")
+            print(f"{ERR} {sdir}: {e}")
 
-    print(f"{TOTAL} Wrote {total_entries} JSONL lines across {total_samples} sample folders.")
+    msg = f"{TOTAL} Samples processed: {processed}"
+    if "dual" in modes:
+        msg += f"  qa_dual lines: {total_dual}"
+    if "mask" in modes:
+        msg += f"  qa_mask lines: {total_mask}"
+    print(msg)
+
 
 if __name__ == "__main__":
     main()
