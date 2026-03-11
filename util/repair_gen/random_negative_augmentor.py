@@ -337,7 +337,7 @@ def augment_one_sample(
         ops_log: List[Dict[str, Any]] = []
         augmented_any = False
 
-        # choose some rps indices to *touch* (we'll promote to group-level)
+        # choose some rps indices to *touch*
         n_to_touch = random.randint(1, len(rps_idx))
         touch_set = set(random.sample(rps_idx, n_to_touch))
         # promote to leaders
@@ -534,7 +534,6 @@ def copy_inheritance(src_sample_dir: str, dst_dir: str) -> None:
 def detect_image_size(sample_dir: str, default_w: int, default_h: int) -> Tuple[int, int]:
     """
     Try to read original_image.jpg to get (W, H). If not possible, return defaults.
-    (We keep it simple; default is usually 512x512 per your note.)
     """
     return (default_w, default_h)
 
@@ -548,11 +547,11 @@ def main():
                         help="Comma-separated rps_points types to include (e.g., '10,11,110,112').")
     parser.add_argument("--ops", type=str, default="shift,delete",
                         help="Allowed operations (subset of: shift,scale,delete).")
-    parser.add_argument("--shift-std", type=float, default=15.0,
+    parser.add_argument("--shift-std", type=float, default=200.0,
                         help="Gaussian std (in pixels) for shifts (mean=0).")
-    parser.add_argument("--scale-std", type=float, default=0.4,
+    parser.add_argument("--scale-std", type=float, default=5.0,
                         help="Gaussian std for scaling (mean=1.0).")
-    parser.add_argument("--p-delete", type=float, default=0.15,
+    parser.add_argument("--p-delete", type=float, default=0.20,
                         help="Probability to delete a selected rps contour.")
     parser.add_argument("--img-w", type=int, default=512, help="Image width if not detectable.")
     parser.add_argument("--img-h", type=int, default=512, help="Image height if not detectable.")
